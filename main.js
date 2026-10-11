@@ -553,33 +553,36 @@ class CalendarView extends ItemView {
 
   buildHeader(ws, today) {
     const head = mk('div', 'sc-header');
-    const row = mk('div', 'sc-nav-row');
-    row.appendChild(mk('button', 'sc-nav', '‹', { 'data-nav': 'prev', title: '上一周期' }));
 
+    /* 第一行：标题（月 / 年两段）+ 独立的「今天」 */
+    const titleRow = mk('div', 'sc-title-row');
     const titles = mk('div', 'sc-titles');
     if (this.view === 'year') {
-      // 年视图：年份不可再点（已在年视图），点它回月视图
+      // 年视图：年份已在年视图，点它回月视图
       titles.appendChild(mk('button', 'sc-title', yearLabel(this.cursor), { 'data-view': 'month', title: '回到月视图' }));
     } else {
       titles.appendChild(mk('button', 'sc-title', monthLabel(this.cursor), { 'data-goto-monthview': '1', title: '月视图' }));
       titles.appendChild(mk('button', 'sc-title sc-title-year', yearLabel(this.cursor), { 'data-view': 'year', title: '年视图' }));
     }
-    row.appendChild(titles);
-
+    titleRow.appendChild(titles);
     const isToday = sameDay(this.cursor, today) && this.view === 'month';
-    row.appendChild(mk('button', `sc-today${isToday ? ' is-off' : ''}`, '今天', { 'data-nav': 'today', title: '回到今天' }));
-    row.appendChild(mk('button', 'sc-nav', '›', { 'data-nav': 'next', title: '下一周期' }));
-    head.appendChild(row);
+    titleRow.appendChild(mk('button', `sc-today${isToday ? ' is-off' : ''}`, '今天', { 'data-nav': 'today', title: '回到今天' }));
+    head.appendChild(titleRow);
 
+    /* 第二行：箭头在两侧，月 / 年 在中间 */
+    const navRow = mk('div', 'sc-nav-row');
+    navRow.appendChild(mk('button', 'sc-nav', '‹', { 'data-nav': 'prev', title: '上一周期' }));
     const tabs = mk('div', 'sc-tabs');
     for (const v of VIEWS) {
       const label = v === 'month' ? '月' : '年';
       tabs.appendChild(mk('button', `sc-tab${this.view === v ? ' is-active' : ''}`, label, { 'data-view': v, title: `${label}视图` }));
     }
-    head.appendChild(tabs);
+    navRow.appendChild(tabs);
+    navRow.appendChild(mk('button', 'sc-nav', '›', { 'data-nav': 'next', title: '下一周期' }));
+    head.appendChild(navRow);
+
     return head;
   }
-
   /* ---------------- 月视图（带周号列，周视图已并入） ---------------- */
 
   buildMonth(body, ws, today) {

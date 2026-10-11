@@ -36,22 +36,24 @@
 <div class="cols">
 
   <div class="col">
-    <div class="label"><b>① 月视图（周号并入）</b> · 点日期进/生成日记，点周号进/生成周记 <code>月</code></div>
+    <div class="label"><b>① 月视图（周号并入）</b> · 箭头在月/年两侧，「今天」独立在标题行 <code>月</code></div>
     <div class="frame">
       <div class="simple-calendar">
         <div class="sc-header">
-          <div class="sc-nav-row">
-            <button class="sc-nav">‹</button>
+          <div class="sc-title-row">
             <div class="sc-titles">
               <button class="sc-title">10月</button>
               <button class="sc-title sc-title-year">2026</button>
             </div>
             <button class="sc-today is-off">今天</button>
-            <button class="sc-nav">›</button>
           </div>
-          <div class="sc-tabs">
-            <button class="sc-tab is-active">月</button>
-            <button class="sc-tab">年</button>
+          <div class="sc-nav-row">
+            <button class="sc-nav">‹</button>
+            <div class="sc-tabs">
+              <button class="sc-tab is-active">月</button>
+              <button class="sc-tab">年</button>
+            </div>
+            <button class="sc-nav">›</button>
           </div>
         </div>
         <div class="sc-body"><div class="sc-grid sc-grid-month has-week" id="month-grid"></div></div>
@@ -64,15 +66,17 @@
     <div class="frame">
       <div class="simple-calendar">
         <div class="sc-header">
-          <div class="sc-nav-row">
-            <button class="sc-nav">‹</button>
+          <div class="sc-title-row">
             <div class="sc-titles"><button class="sc-title">2026</button></div>
             <button class="sc-today">今天</button>
-            <button class="sc-nav">›</button>
           </div>
-          <div class="sc-tabs">
-            <button class="sc-tab">月</button>
-            <button class="sc-tab is-active">年</button>
+          <div class="sc-nav-row">
+            <button class="sc-nav">‹</button>
+            <div class="sc-tabs">
+              <button class="sc-tab">月</button>
+              <button class="sc-tab is-active">年</button>
+            </div>
+            <button class="sc-nav">›</button>
           </div>
         </div>
         <div class="sc-body"><div class="sc-year" id="year-grid"></div></div>
@@ -121,10 +125,9 @@
   }
 
   const HAVE = new Set(['2026-09-29','2026-10-02','2026-10-05','2026-10-06','2026-10-08','2026-10-10','2026-10-14','2026-10-20','2026-10-21']);
-  const HAVE_WEEK = new Set(['2026-10-05','2026-09-28']); // 那几周已有周记
+  const HAVE_WEEK = new Set(['2026-10-05','2026-09-28']);
   const TODAY = '2026-10-11';
 
-  // ① 月视图 + 周号列
   const mg = document.getElementById('month-grid');
   const wHead = document.createElement('div');
   wHead.className = 'sc-dow sc-dow-week';
@@ -158,7 +161,6 @@
     }
   }
 
-  // ② 年视图
   const yg = document.getElementById('year-grid');
   for (let m = 0; m < 12; m += 1) {
     const box = document.createElement('div');
