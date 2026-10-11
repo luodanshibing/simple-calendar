@@ -37,8 +37,8 @@ This plugin does the same job with that gap closed, and adds year view.
 
 ### Install (manual)
 
-1. Copy `main.js`, `manifest.json`, `styles.css` and `versions.json` into `<your vault>/.obsidian/plugins/luodanshibing-simple-calendar/`.
-   The plugin **id** is `luodanshibing-simple-calendar`. It was renamed in 1.3.1 because the bare id `simple-calendar` already belongs to an unrelated community plugin — with a matching id, Obsidian offers a bogus update that would overwrite this plugin's files.
+1. Copy `main.js`, `manifest.json`, `styles.css` and `versions.json` into `<your vault>/.obsidian/plugins/simple-calendar-lite/`.
+   The plugin **id** is `simple-calendar-lite`. It was renamed in 1.3.2 because the bare id `simple-calendar` already belongs to an unrelated community plugin — with a matching id, Obsidian offers a bogus update that would overwrite this plugin's files.
 2. Reload Obsidian (`Ctrl+P` → *Reload app without saving*).
 3. Enable **Simple Calendar** in *Settings → Community plugins*.
 
@@ -131,8 +131,8 @@ MIT — see [LICENSE](LICENSE).
 
 ### 安装（手动）
 
-1. 把 `main.js`、`manifest.json`、`styles.css`、`versions.json` 放到 `<你的库>/.obsidian/plugins/luodanshibing-simple-calendar/`；
-   （插件 **id** 是 `luodanshibing-simple-calendar`。1.3.1 起改名：裸 id `simple-calendar` 已被社区里一个**无关插件**占用 —— id 相同会让 Obsidian 给出假的「更新」，点了会覆盖本插件文件。）
+1. 把 `main.js`、`manifest.json`、`styles.css`、`versions.json` 放到 `<你的库>/.obsidian/plugins/simple-calendar-lite/`；
+   （插件 **id** 是 `simple-calendar-lite`。1.3.2 起改名：裸 id `simple-calendar` 已被社区里一个**无关插件**占用 —— id 相同会让 Obsidian 给出假的「更新」，点了会覆盖本插件文件。）
 2. `Ctrl+P` →「重新加载应用而不保存」；
 3. 设置 → 第三方插件 → 启用 **Simple Calendar**。
 

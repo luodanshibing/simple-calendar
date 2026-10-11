@@ -10,7 +10,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
-$dst = Join-Path $Vault '.obsidian\plugins\luodanshibing-simple-calendar'
+$dst = Join-Path $Vault '.obsidian\plugins\simple-calendar-lite'
 
 if (-not (Test-Path $Vault)) { throw "库路径不存在：$Vault" }
 
