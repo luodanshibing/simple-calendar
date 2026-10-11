@@ -1,10 +1,10 @@
 'use strict';
 
 /* ==========================================================================
- * Simple Calendar — 轻量日历（月 / 周 / 年视图）
+ * Simple Calendar — 轻量日历（月 / 年视图，周号并入月视图）
  * --------------------------------------------------------------------------
- * 替代已停更的 Calendar：点日期进入或生成日记，点周记按钮进入或生成周记，
- * 生成走 Templater（模板里的 <% %> 会被真正执行），可挂到侧边栏。
+ * 替代已停更的 Calendar：月视图带周号列（点周号进入或生成周记），
+ * 点日期进入或生成日记，点年份跳到年视图，生成走 Templater。
  *
  * 改代码前先读这五条设计红线：
  *   1. 零依赖   不用 Svelte / React，原生 DOM + 事件委托（整个视图一个监听器）。
@@ -18,7 +18,7 @@
  *   §1 常量与默认设置
  *   §2 纯函数（无副作用；tools/test.mjs 覆盖这部分）
  *   §3 SimpleCalendarPlugin  生命周期 / 视图注册 / 建笔记 / Templater 对接
- *   §4 CalendarView          月 / 周 / 年三种视图
+ *   §4 CalendarView          月（含周号列）与年视图
  *   §5 CalendarSettingTab    设置页
  *   §6 导出
  * ========================================================================== */
@@ -30,7 +30,7 @@ const { Plugin, ItemView, PluginSettingTab, Setting, TFile, Notice, normalizePat
 const momentLib = obsidian.moment || (typeof window !== 'undefined' ? window.moment : null);
 
 const VIEW_TYPE = 'simple-calendar-view';
-const VIEWS = ['month', 'week', 'year'];
+const VIEWS = ['month', 'year'];
 const WEEKDAY_CN = ['日', '一', '二', '三', '四', '五', '六'];
 const MONTH_CN = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'];
 const VAULT_EVENT_DEBOUNCE_MS = 250;
@@ -39,9 +39,10 @@ const FALLBACK_DAILY = { folder: '', format: 'YYYY-MM-DD', template: '' };
 
 const DEFAULT_SETTINGS = {
   /* 视图 */
-  defaultView: 'month', // month | week | year
+  defaultView: 'month', // month | year
   weekStartsOn: 'locale', // locale | monday | sunday
   showDots: true,
+  showWeekNumbers: true,
   /* 启动时若侧边栏没有日历就打开它 */
   openOnStart: true,
 
@@ -62,7 +63,7 @@ const DEFAULT_SETTINGS = {
 
 /* §2 纯函数 =============================================================== */
 
-/** 合并设置：只接受已知键，旧 data.json 的多余字段不会影响界面 */
+/** 合并设置：只接受已知键；旧版本用过的 'week' 视图并入月视图 */
 function normalizeSettings(raw) {
   const out = Object.assign({}, DEFAULT_SETTINGS);
   if (raw && typeof raw === 'object') {
@@ -70,6 +71,7 @@ function normalizeSettings(raw) {
       if (raw[key] !== undefined) out[key] = raw[key];
     }
   }
+  if (out.defaultView === 'week') out.defaultView = 'month'; // 周视图已并入月视图
   if (VIEWS.indexOf(out.defaultView) < 0) out.defaultView = DEFAULT_SETTINGS.defaultView;
   if (['locale', 'monday', 'sunday'].indexOf(out.weekStartsOn) < 0) out.weekStartsOn = DEFAULT_SETTINGS.weekStartsOn;
   return out;
@@ -132,7 +134,7 @@ function isoWeekYear(date) {
   return d.getUTCFullYear();
 }
 
-/** 月视图网格：固定 6 行 × 7 列 = 42 格（行数固定，翻月不跳高度） */
+/** 月视图网格（扁平 42 格，年视图的迷你月用它） */
 function buildMonthGrid(year, month, weekStartsOn) {
   const gridStart = startOfWeek(new Date(year, month, 1), weekStartsOn);
   const cells = [];
@@ -143,12 +145,18 @@ function buildMonthGrid(year, month, weekStartsOn) {
   return cells;
 }
 
-/** 周视图：以 date 所在周为基准返回 7 天 */
-function buildWeekDays(date, weekStartsOn) {
-  const start = startOfWeek(date, weekStartsOn);
-  const out = [];
-  for (let i = 0; i < 7; i += 1) out.push(addDays(start, i));
-  return out;
+/**
+ * 月视图按"行"组织：6 行，每行带一个 ISO 周号 + 7 天。
+ * 点周号就是进入 / 生成那一周的周记 —— 周视图与月视图合体就在这里。
+ */
+function buildMonthRows(year, month, weekStartsOn) {
+  const cells = buildMonthGrid(year, month, weekStartsOn);
+  const rows = [];
+  for (let r = 0; r < 6; r += 1) {
+    const days = cells.slice(r * 7, r * 7 + 7);
+    rows.push({ week: isoWeek(days[0].date), weekYear: isoWeekYear(days[0].date), days: days });
+  }
+  return rows;
 }
 
 /** 年视图：12 个月，每月一份 42 格网格 */
@@ -158,6 +166,15 @@ function buildYearGrid(year, weekStartsOn) {
     months.push({ month: m, label: MONTH_CN[m], cells: buildMonthGrid(year, m, weekStartsOn) });
   }
   return months;
+}
+
+/** 表头两段标题：月份段与年份段分开，方便各自可点 */
+function monthLabel(cursor) {
+  return `${cursor.getMonth() + 1}月`;
+}
+
+function yearLabel(cursor) {
+  return String(cursor.getFullYear());
 }
 
 /** 拼路径：文件夹 + 文件名 + .md（空文件夹 = 库根） */
@@ -204,35 +221,13 @@ function substituteCoreTemplate(text, ctx, formatFn) {
   });
 }
 
-/** 表头标题 */
-function viewTitle(view, cursor, weekStartsOn) {
-  const y = cursor.getFullYear();
-  if (view === 'year') return `${y} 年`;
-  if (view === 'week') {
-    const start = startOfWeek(cursor, weekStartsOn);
-    const end = addDays(start, 6);
-    let range;
-    if (start.getFullYear() !== end.getFullYear()) {
-      // 跨年周：必须带年份，否则"12月29日–1月4日"看不出是哪一年
-      range = `${start.getFullYear()}/${start.getMonth() + 1}/${start.getDate()} – ${end.getFullYear()}/${end.getMonth() + 1}/${end.getDate()}`;
-    } else if (start.getMonth() === end.getMonth()) {
-      range = `${start.getMonth() + 1}月${start.getDate()}–${end.getDate()}日`;
-    } else {
-      range = `${start.getMonth() + 1}月${start.getDate()}日 – ${end.getMonth() + 1}月${end.getDate()}日`;
-    }
-    return `第 ${isoWeek(cursor)} 周 · ${range}`;
-  }
-  return `${y} 年 ${cursor.getMonth() + 1} 月`;
-}
-
-/** 按视图平移光标 */
+/** 按视图平移光标：月视图按月，年视图按年 */
 function shiftCursor(view, cursor, delta) {
   const d = new Date(cursor.getTime());
   if (view === 'year') {
     d.setFullYear(d.getFullYear() + delta);
     return d;
   }
-  if (view === 'week') return addDays(d, 7 * delta);
   d.setDate(1);
   d.setMonth(d.getMonth() + delta);
   return d;
@@ -546,7 +541,6 @@ class CalendarView extends ItemView {
 
     const body = root.createDiv({ cls: 'sc-body' });
     if (this.view === 'year') this.buildYear(body, ws, today);
-    else if (this.view === 'week') this.buildWeek(body, ws, today);
     else this.buildMonth(body, ws, today);
 
     if (!this.handler) {
@@ -555,78 +549,75 @@ class CalendarView extends ItemView {
     }
   }
 
-  /* ---------------- 表头 ---------------- */
+  /* ---------------- 表头：‹ 10月 2026 今天 › + 月/年 ---------------- */
 
   buildHeader(ws, today) {
     const head = mk('div', 'sc-header');
     const row = mk('div', 'sc-nav-row');
     row.appendChild(mk('button', 'sc-nav', '‹', { 'data-nav': 'prev', title: '上一周期' }));
-    const title = mk('button', 'sc-title', viewTitle(this.view, this.cursor, ws), { 'data-nav': 'today', title: '回到今天' });
-    if (!sameDay(this.cursor, today) && this.view === 'month') title.classList.add('is-offset');
-    row.appendChild(title);
+
+    const titles = mk('div', 'sc-titles');
+    if (this.view === 'year') {
+      // 年视图：年份不可再点（已在年视图），点它回月视图
+      titles.appendChild(mk('button', 'sc-title', yearLabel(this.cursor), { 'data-view': 'month', title: '回到月视图' }));
+    } else {
+      titles.appendChild(mk('button', 'sc-title', monthLabel(this.cursor), { 'data-goto-monthview': '1', title: '月视图' }));
+      titles.appendChild(mk('button', 'sc-title sc-title-year', yearLabel(this.cursor), { 'data-view': 'year', title: '年视图' }));
+    }
+    row.appendChild(titles);
+
+    const isToday = sameDay(this.cursor, today) && this.view === 'month';
+    row.appendChild(mk('button', `sc-today${isToday ? ' is-off' : ''}`, '今天', { 'data-nav': 'today', title: '回到今天' }));
     row.appendChild(mk('button', 'sc-nav', '›', { 'data-nav': 'next', title: '下一周期' }));
     head.appendChild(row);
 
     const tabs = mk('div', 'sc-tabs');
     for (const v of VIEWS) {
-      const label = v === 'month' ? '月' : v === 'week' ? '周' : '年';
+      const label = v === 'month' ? '月' : '年';
       tabs.appendChild(mk('button', `sc-tab${this.view === v ? ' is-active' : ''}`, label, { 'data-view': v, title: `${label}视图` }));
-    }
-    if (this.view === 'week') {
-      const wk = mk('button', 'sc-tab sc-weekly', '周记 →', { 'data-weekly': '1', title: '打开或生成本周的周记' });
-      if (this.cfg && this.plugin.isExisting(this.plugin.pathFor(this.cursor, this.cfg.weekly))) wk.classList.add('has-note');
-      tabs.appendChild(wk);
     }
     head.appendChild(tabs);
     return head;
   }
 
-  /* ---------------- 月视图 ---------------- */
+  /* ---------------- 月视图（带周号列，周视图已并入） ---------------- */
 
   buildMonth(body, ws, today) {
     const s = this.plugin.settings;
-    const grid = mk('div', 'sc-grid sc-grid-month');
+    const grid = mk('div', `sc-grid sc-grid-month${s.showWeekNumbers ? ' has-week' : ''}`);
+
+    if (s.showWeekNumbers) grid.appendChild(mk('div', 'sc-dow sc-dow-week', 'W', { title: '点周号进入 / 生成那一周的周记' }));
     for (let i = 0; i < 7; i += 1) grid.appendChild(mk('div', 'sc-dow', WEEKDAY_CN[(ws + i) % 7]));
 
     const frag = document.createDocumentFragment();
-    for (const cell of buildMonthGrid(this.cursor.getFullYear(), this.cursor.getMonth(), ws)) {
-      const key = dayKey(cell.date);
-      const el = mk(
-        'div',
-        `sc-cell${cell.inMonth ? '' : ' is-out'}${sameDay(cell.date, today) ? ' is-today' : ''}`,
-        null,
-        { 'data-date': key, title: key }
-      );
-      el.appendChild(mk('div', 'sc-daynum', String(cell.date.getDate())));
-      if (s.showDots) el.appendChild(mk('div', 'sc-dot-slot'));
-      frag.appendChild(el);
+    for (const row of buildMonthRows(this.cursor.getFullYear(), this.cursor.getMonth(), ws)) {
+      if (s.showWeekNumbers) {
+        const wcell = mk('div', 'sc-wnum', String(row.week).padStart(2, '0'), {
+          'data-week': dayKey(row.days[0].date),
+          title: `第 ${row.week} 周 · 进入 / 生成周记`,
+        });
+        frag.appendChild(wcell);
+      }
+      for (const cell of row.days) {
+        const key = dayKey(cell.date);
+        const el = mk(
+          'div',
+          `sc-cell${cell.inMonth ? '' : ' is-out'}${sameDay(cell.date, today) ? ' is-today' : ''}`,
+          null,
+          { 'data-date': key, title: key }
+        );
+        el.appendChild(mk('div', 'sc-daynum', String(cell.date.getDate())));
+        if (s.showDots) el.appendChild(mk('div', 'sc-dot-slot'));
+        frag.appendChild(el);
+      }
     }
     grid.appendChild(frag);
     body.appendChild(grid);
     this.markExisting(grid);
+    this.markWeeks(grid, ws);
   }
 
-  /* ---------------- 周视图 ---------------- */
-
-  buildWeek(body, ws, today) {
-    const s = this.plugin.settings;
-    const wrap = mk('div', 'sc-week');
-    const frag = document.createDocumentFragment();
-    for (const d of buildWeekDays(this.cursor, ws)) {
-      const key = dayKey(d);
-      const row = mk('div', `sc-week-row${sameDay(d, today) ? ' is-today' : ''}`, null, { 'data-date': key, title: key });
-      row.appendChild(mk('div', 'sc-week-dow', `周${WEEKDAY_CN[d.getDay()]}`));
-      row.appendChild(mk('div', 'sc-week-date', `${d.getMonth() + 1}/${d.getDate()}`));
-      if (s.showDots) row.appendChild(mk('div', 'sc-dot-slot'));
-      row.appendChild(mk('div', 'sc-week-hint', '进入 / 生成'));
-      frag.appendChild(row);
-    }
-    wrap.appendChild(frag);
-    body.appendChild(wrap);
-    this.markExisting(wrap);
-  }
-
-  /* ---------------- 年视图 ---------------- */
+  /* ---------------- 年视图（12 个迷你月） ---------------- */
 
   buildYear(body, ws, today) {
     const s = this.plugin.settings;
@@ -637,11 +628,12 @@ class CalendarView extends ItemView {
       box.appendChild(mk('div', 'sc-mini-title', m.label, { 'data-goto-month': String(m.month), title: '切到该月' }));
       const grid = mk('div', 'sc-mini-grid');
       for (const c of m.cells) {
+        const key = dayKey(c.date);
         const cell = mk(
           'div',
           `sc-mini-cell${c.inMonth ? '' : ' is-out'}${sameDay(c.date, today) ? ' is-today' : ''}`,
           null,
-          { 'data-date': dayKey(c.date), title: dayKey(c.date) }
+          { 'data-date': key, title: key }
         );
         if (s.showDots) cell.appendChild(mk('div', 'sc-dot-slot'));
         grid.appendChild(cell);
@@ -671,6 +663,18 @@ class CalendarView extends ItemView {
     }
   }
 
+  /** 周号列：那一周的周记已存在时加个点（同样只查存在性） */
+  markWeeks(scope, ws) {
+    if (!this.plugin.settings.showDots || !this.cfg) return;
+    const cells = scope.querySelectorAll('[data-week]');
+    for (let i = 0; i < cells.length; i += 1) {
+      const el = cells[i];
+      const date = parseDayKey(el.getAttribute('data-week'));
+      if (!date) continue;
+      if (this.plugin.isExisting(this.plugin.pathFor(date, this.cfg.weekly))) el.classList.add('has-note');
+    }
+  }
+
   /* ---------------- 交互（事件委托） ---------------- */
 
   async onClick(e, ws) {
@@ -678,6 +682,7 @@ class CalendarView extends ItemView {
     if (nav) {
       const kind = nav.getAttribute('data-nav');
       this.cursor = kind === 'today' ? startOfDay(new Date()) : shiftCursor(this.view, this.cursor, kind === 'next' ? 1 : -1);
+      if (kind === 'today' && this.view === 'year') this.view = 'month';
       await this.render();
       return;
     }
@@ -692,6 +697,12 @@ class CalendarView extends ItemView {
       return;
     }
 
+    if (e.target.closest('[data-goto-monthview]')) {
+      this.view = 'month';
+      await this.render();
+      return;
+    }
+
     const monthBtn = e.target.closest('[data-goto-month]');
     if (monthBtn) {
       const d = new Date(this.cursor.getTime());
@@ -703,8 +714,10 @@ class CalendarView extends ItemView {
       return;
     }
 
-    if (e.target.closest('[data-weekly]')) {
-      await this.plugin.openOrCreate('weekly', this.cursor, e.ctrlKey || e.metaKey);
+    const weekCell = e.target.closest('[data-week]');
+    if (weekCell) {
+      const date = parseDayKey(weekCell.getAttribute('data-week'));
+      if (date) await this.plugin.openOrCreate('weekly', date, e.ctrlKey || e.metaKey);
       return;
     }
 
@@ -741,11 +754,10 @@ class CalendarSettingTab extends PluginSettingTab {
     containerEl.createEl('h3', { text: '视图' });
     new Setting(containerEl)
       .setName('默认视图')
-      .setDesc('打开日历时显示月 / 周 / 年哪种视图')
+      .setDesc('打开日历时显示月还是年（周号已并入月视图）')
       .addDropdown((d) =>
         d
           .addOption('month', '月')
-          .addOption('week', '周')
           .addOption('year', '年')
           .setValue(s.defaultView)
           .onChange(async (v) => {
@@ -770,6 +782,10 @@ class CalendarSettingTab extends PluginSettingTab {
           .setValue(s.weekStartsOn)
           .onChange(bind('weekStartsOn'))
       );
+    new Setting(containerEl)
+      .setName('显示周号列')
+      .setDesc('月视图左侧那一列 ISO 周号；点它就是进入 / 生成那一周的周记')
+      .addToggle((t) => t.setValue(!!s.showWeekNumbers).onChange(bind('showWeekNumbers')));
     new Setting(containerEl)
       .setName('标记有笔记的日子')
       .setDesc('只查文件是否存在，不读内容 —— 不影响速度')
@@ -800,6 +816,7 @@ class CalendarSettingTab extends PluginSettingTab {
 
     /* ---------- 周记 ---------- */
     containerEl.createEl('h3', { text: '周记' });
+    containerEl.createEl('p', { cls: 'setting-item-description', text: '点月视图左侧的周号即可进入 / 生成周记。' });
     new Setting(containerEl)
       .setName('周记格式')
       .setDesc('moment 格式；gggg = ISO 周所属年份，WW = 两位周号')
@@ -822,6 +839,12 @@ class CalendarSettingTab extends PluginSettingTab {
 
     /* ---------- 关于 ---------- */
     containerEl.createEl('h3', { text: '关于' });
+    containerEl.createEl('p', {
+      cls: 'setting-item-description',
+      text:
+        '操作：点日期 = 进入或生成日记；点左侧周号 = 进入或生成周记；点年份 = 年视图；点月名 = 回月视图；' +
+        '「今天」按钮回到当天；Ctrl/Cmd + 点击在新标签页打开。',
+    });
     containerEl.createEl('p', {
       cls: 'setting-item-description',
       text:
@@ -854,12 +877,13 @@ module.exports.__test = {
   isoWeek,
   isoWeekYear,
   buildMonthGrid,
-  buildWeekDays,
+  buildMonthRows,
   buildYearGrid,
+  monthLabel,
+  yearLabel,
   notePath,
   parseDailyNotes,
   substituteCoreTemplate,
-  viewTitle,
   shiftCursor,
   parseDayKey,
 };

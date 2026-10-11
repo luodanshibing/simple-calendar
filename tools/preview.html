@@ -2,9 +2,8 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<title>Simple Calendar · 月 / 周 / 年三种视图</title>
+<title>Simple Calendar · 月（含周号列）/ 年</title>
 <style>
-  /* Obsidian 亮色主题变量的近似值，让插件样式表能取到变量 */
   .frame {
     --background-primary: #ffffff;
     --background-secondary: #f6f6f6;
@@ -23,7 +22,6 @@
   .label { color: #e5e5e5; font-size: 13px; margin: 0 0 8px; }
   .label b { color: #fff; }
   .label code { color: #a5b4fc; }
-  /* 侧边栏宽度（约 330px）下的真实观感 */
   .frame {
     box-sizing: border-box; width: 330px; height: 430px; overflow: hidden;
     background: var(--background-primary);
@@ -32,78 +30,48 @@
     color: var(--text-normal);
   }
 </style>
-<!-- 插件自己的样式表（改插件样式后重跑 tools/shot-preview.ps1 即可同步） -->
 <link rel="stylesheet" href="../styles.css">
 </head>
 <body>
 <div class="cols">
 
   <div class="col">
-    <div class="label"><b>① 月视图</b> · 点击日期进入或生成日记 <code>月</code></div>
+    <div class="label"><b>① 月视图（周号并入）</b> · 点日期进/生成日记，点周号进/生成周记 <code>月</code></div>
     <div class="frame">
       <div class="simple-calendar">
         <div class="sc-header">
           <div class="sc-nav-row">
             <button class="sc-nav">‹</button>
-            <button class="sc-title">2026 年 10 月</button>
+            <div class="sc-titles">
+              <button class="sc-title">10月</button>
+              <button class="sc-title sc-title-year">2026</button>
+            </div>
+            <button class="sc-today is-off">今天</button>
             <button class="sc-nav">›</button>
           </div>
           <div class="sc-tabs">
             <button class="sc-tab is-active">月</button>
-            <button class="sc-tab">周</button>
             <button class="sc-tab">年</button>
           </div>
         </div>
-        <div class="sc-body"><div class="sc-grid sc-grid-month" id="month-grid"></div></div>
+        <div class="sc-body"><div class="sc-grid sc-grid-month has-week" id="month-grid"></div></div>
       </div>
     </div>
   </div>
 
   <div class="col">
-    <div class="label"><b>② 周视图</b> · 「周记 →」生成或进入本周周记 <code>周</code></div>
+    <div class="label"><b>② 年视图</b> · 点月份名回月视图，点格子进当天 <code>年</code></div>
     <div class="frame">
       <div class="simple-calendar">
         <div class="sc-header">
           <div class="sc-nav-row">
             <button class="sc-nav">‹</button>
-            <button class="sc-title">第 41 周 · 10月5–11日</button>
+            <div class="sc-titles"><button class="sc-title">2026</button></div>
+            <button class="sc-today">今天</button>
             <button class="sc-nav">›</button>
           </div>
           <div class="sc-tabs">
             <button class="sc-tab">月</button>
-            <button class="sc-tab is-active">周</button>
-            <button class="sc-tab">年</button>
-            <button class="sc-tab sc-weekly has-note">周记 →</button>
-          </div>
-        </div>
-        <div class="sc-body">
-          <div class="sc-week">
-            <div class="sc-week-row"><div class="sc-week-dow">周一</div><div class="sc-week-date">10/5</div><div class="sc-dot-slot has-note"></div><div class="sc-week-hint">进入 / 生成</div></div>
-            <div class="sc-week-row"><div class="sc-week-dow">周二</div><div class="sc-week-date">10/6</div><div class="sc-dot-slot has-note"></div><div class="sc-week-hint">进入 / 生成</div></div>
-            <div class="sc-week-row"><div class="sc-week-dow">周三</div><div class="sc-week-date">10/7</div><div class="sc-dot-slot"></div><div class="sc-week-hint">进入 / 生成</div></div>
-            <div class="sc-week-row"><div class="sc-week-dow">周四</div><div class="sc-week-date">10/8</div><div class="sc-dot-slot has-note"></div><div class="sc-week-hint">进入 / 生成</div></div>
-            <div class="sc-week-row"><div class="sc-week-dow">周五</div><div class="sc-week-date">10/9</div><div class="sc-dot-slot"></div><div class="sc-week-hint">进入 / 生成</div></div>
-            <div class="sc-week-row"><div class="sc-week-dow">周六</div><div class="sc-week-date">10/10</div><div class="sc-dot-slot has-note"></div><div class="sc-week-hint">进入 / 生成</div></div>
-            <div class="sc-week-row is-today"><div class="sc-week-dow">周日</div><div class="sc-week-date">10/11</div><div class="sc-dot-slot"></div><div class="sc-week-hint">进入 / 生成</div></div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="col">
-    <div class="label"><b>③ 年视图</b> · 点月份切回月视图，点格子进当天 <code>年</code></div>
-    <div class="frame">
-      <div class="simple-calendar">
-        <div class="sc-header">
-          <div class="sc-nav-row">
-            <button class="sc-nav">‹</button>
-            <button class="sc-title is-offset">2026 年</button>
-            <button class="sc-nav">›</button>
-          </div>
-          <div class="sc-tabs">
-            <button class="sc-tab">月</button>
-            <button class="sc-tab">周</button>
             <button class="sc-tab is-active">年</button>
           </div>
         </div>
@@ -115,10 +83,10 @@
 </div>
 
 <script>
-  // 仅用于预览页：按插件同款规则生成月网格与年网格
+  // 仅用于预览页：按插件同款规则生成月网格（含周号）与年网格
   const WD = ['日', '一', '二', '三', '四', '五', '六'];
   const MONTHS = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
-  const START = 1; // 周一为周首
+  const START = 1;
 
   function startOfWeek(d) {
     const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
@@ -135,6 +103,13 @@
     const p = (n) => String(n).padStart(2, '0');
     return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
   }
+  function isoWeek(date) {
+    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+    const dayNum = d.getUTCDay() || 7;
+    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+    return Math.ceil(((d - yearStart) / 86400000 + 1) / 7);
+  }
   function grid(year, month) {
     const first = startOfWeek(new Date(year, month, 1));
     const cells = [];
@@ -145,33 +120,45 @@
     return cells;
   }
 
-  // 有笔记的日子（示例数据）
   const HAVE = new Set(['2026-09-29','2026-10-02','2026-10-05','2026-10-06','2026-10-08','2026-10-10','2026-10-14','2026-10-20','2026-10-21']);
+  const HAVE_WEEK = new Set(['2026-10-05','2026-09-28']); // 那几周已有周记
   const TODAY = '2026-10-11';
 
-  // ① 月视图
+  // ① 月视图 + 周号列
   const mg = document.getElementById('month-grid');
+  const wHead = document.createElement('div');
+  wHead.className = 'sc-dow sc-dow-week';
+  wHead.textContent = 'W';
+  mg.appendChild(wHead);
   for (let i = 0; i < 7; i += 1) {
     const el = document.createElement('div');
     el.className = 'sc-dow';
     el.textContent = WD[(START + i) % 7];
     mg.appendChild(el);
   }
-  for (const c of grid(2026, 9)) {
-    const k = key(c.d);
-    const el = document.createElement('div');
-    el.className = 'sc-cell' + (c.inMonth ? '' : ' is-out') + (k === TODAY ? ' is-today' : '');
-    const num = document.createElement('div');
-    num.className = 'sc-daynum';
-    num.textContent = c.d.getDate();
-    el.appendChild(num);
-    const slot = document.createElement('div');
-    slot.className = 'sc-dot-slot' + (HAVE.has(k) ? ' has-note' : '');
-    el.appendChild(slot);
-    mg.appendChild(el);
+  const cells = grid(2026, 9);
+  for (let r = 0; r < 6; r += 1) {
+    const row = cells.slice(r * 7, r * 7 + 7);
+    const wk = document.createElement('div');
+    wk.className = 'sc-wnum' + (HAVE_WEEK.has(key(row[0].d)) ? ' has-note' : '');
+    wk.textContent = String(isoWeek(row[0].d)).padStart(2, '0');
+    mg.appendChild(wk);
+    for (const c of row) {
+      const k = key(c.d);
+      const el = document.createElement('div');
+      el.className = 'sc-cell' + (c.inMonth ? '' : ' is-out') + (k === TODAY ? ' is-today' : '');
+      const num = document.createElement('div');
+      num.className = 'sc-daynum';
+      num.textContent = c.d.getDate();
+      el.appendChild(num);
+      const slot = document.createElement('div');
+      slot.className = 'sc-dot-slot' + (HAVE.has(k) ? ' has-note' : '');
+      el.appendChild(slot);
+      mg.appendChild(el);
+    }
   }
 
-  // ③ 年视图
+  // ② 年视图
   const yg = document.getElementById('year-grid');
   for (let m = 0; m < 12; m += 1) {
     const box = document.createElement('div');

@@ -45,16 +45,20 @@
   background: var(--background-modifier-hover);
 }
 
-.sc-title {
+.sc-titles {
+  display: flex;
   flex: 1 1 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
   min-width: 0;
-  padding: 3px 8px;
-  font-size: 13px;
-  font-weight: 600;
-  text-align: center;
+}
+
+.sc-title {
+  padding: 3px 4px;
+  font-size: 15px;
+  font-weight: 700;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
   color: var(--text-normal);
   background: transparent;
   border: none;
@@ -67,8 +71,30 @@
   background: var(--background-modifier-hover);
 }
 
-.sc-title.is-offset {
-  color: var(--text-muted);
+/* 年份段用强调色，和原插件一样一眼能看出"这是可以点进年视图的" */
+.sc-title-year {
+  color: var(--interactive-accent);
+}
+
+.sc-today {
+  flex: 0 0 auto;
+  padding: 3px 8px;
+  font-size: 12px;
+  color: var(--text-normal);
+  background: var(--background-secondary);
+  border: none;
+  border-radius: 6px;
+  box-shadow: none;
+  cursor: pointer;
+}
+
+.sc-today:hover {
+  background: var(--background-modifier-hover);
+}
+
+.sc-today.is-off {
+  color: var(--text-faint);
+  background: transparent;
 }
 
 .sc-tabs {
@@ -97,22 +123,15 @@
   background: var(--interactive-accent);
 }
 
-.sc-weekly {
-  flex: 0 0 auto;
-  padding: 3px 8px;
-  white-space: nowrap;
-}
-
-.sc-weekly.has-note {
-  color: var(--text-normal);
-  border-color: var(--background-modifier-border);
-}
-
-/* ---------- 月视图 ---------- */
+/* ---------- 月视图（含周号列） ---------- */
 .sc-grid-month {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
   gap: 2px;
+}
+
+.sc-grid-month.has-week {
+  grid-template-columns: 20px repeat(7, 1fr);
 }
 
 .sc-dow {
@@ -120,6 +139,39 @@
   font-size: 11px;
   text-align: center;
   color: var(--text-faint);
+}
+
+.sc-dow-week {
+  font-size: 10px;
+  opacity: 0.8;
+}
+
+/* 周号格：点它就是进入 / 生成那一周的周记 */
+.sc-wnum {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 30px;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-faint);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.sc-wnum:hover {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
+}
+
+.sc-wnum.has-note::after {
+  content: '';
+  width: 4px;
+  height: 4px;
+  margin-top: 1px;
+  border-radius: 50%;
+  background: var(--text-faint);
 }
 
 .sc-cell {
@@ -165,53 +217,6 @@
 
 .sc-cell.is-today .sc-dot-slot.has-note {
   background: var(--text-on-accent);
-}
-
-/* ---------- 周视图 ---------- */
-.sc-week {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.sc-week-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 5px 8px;
-  border-radius: 6px;
-  background: var(--background-secondary);
-  cursor: pointer;
-}
-
-.sc-week-row:hover {
-  background: var(--background-modifier-hover);
-}
-
-.sc-week-row.is-today {
-  outline: 1px solid var(--interactive-accent);
-  outline-offset: -1px;
-}
-
-.sc-week-dow {
-  flex: 0 0 34px;
-  font-weight: 600;
-}
-
-.sc-week-date {
-  flex: 0 0 48px;
-  color: var(--text-muted);
-  font-variant-numeric: tabular-nums;
-}
-
-.sc-week-hint {
-  margin-left: auto;
-  font-size: 11px;
-  color: var(--text-faint);
-}
-
-.sc-week-row:hover .sc-week-hint {
-  color: var(--text-muted);
 }
 
 /* ---------- 年视图（迷你月） ---------- */

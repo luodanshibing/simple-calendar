@@ -40,18 +40,20 @@ const eq = (actual, expected, label) => {
 const D = (y, m, d) => new Date(y, m - 1, d);
 
 /* ---------- 1. 默认设置 ---------- */
-eq(Object.keys(T.DEFAULT_SETTINGS).length, 12, '默认设置共 12 项');
+eq(Object.keys(T.DEFAULT_SETTINGS).length, 13, '默认设置共 13 项');
 eq(T.DEFAULT_SETTINGS.defaultView, 'month', '默认月视图');
 eq(T.DEFAULT_SETTINGS.weekStartsOn, 'locale', '默认跟随系统周起始');
+eq(T.DEFAULT_SETTINGS.showWeekNumbers, true, '默认显示周号列');
 eq(T.DEFAULT_SETTINGS.followDailyNotes, true, '默认跟随核心日记设置');
 eq(T.DEFAULT_SETTINGS.showDots, true, '默认显示有笔记的小点');
 eq(T.DEFAULT_SETTINGS.weeklyFormat, 'gggg-[第]WW[周【周记】]', '周记默认格式');
 eq(T.DEFAULT_SETTINGS.confirmBeforeCreate, false, '默认不弹确认（更快）');
-eq(T.VIEWS, ['month', 'week', 'year'], '三种视图');
+eq(T.VIEWS, ['month', 'year'], '两种视图（周已并入月）');
 
 /* ---------- 2. normalizeSettings ---------- */
 eq(T.normalizeSettings(null).defaultView, 'month', 'null → 默认');
-eq(T.normalizeSettings({ defaultView: 'week' }).defaultView, 'week', '合法值被接受');
+eq(T.normalizeSettings({ defaultView: 'year' }).defaultView, 'year', '合法值被接受');
+eq(T.normalizeSettings({ defaultView: 'week' }).defaultView, 'month', '旧版 week 视图迁移为 month');
 eq(T.normalizeSettings({ defaultView: '乱写' }).defaultView, 'month', '非法视图回退');
 eq(T.normalizeSettings({ weekStartsOn: '乱写' }).weekStartsOn, 'locale', '非法周起始回退');
 eq('extra' in T.normalizeSettings({ extra: 1 }), false, '未知键被丢弃');
@@ -93,7 +95,6 @@ eq(g.length, 42, '固定 42 格');
 eq(T.dayKey(g[0].date), '2026-09-28', '第一格是 9/28（周一）');
 eq(g[0].inMonth, false, '第一格不属于本月');
 eq(g.filter((c) => c.inMonth).length, 31, '10 月 31 天');
-eq(g[3].inMonth, true, '第 4 格进入本月');
 eq(T.dayKey(g[41].date), '2026-11-08', '最后一格 11/8');
 const feb = T.buildMonthGrid(2024, 1, 1);
 eq(feb.filter((c) => c.inMonth).length, 29, '2024 年 2 月 29 天（闰年）');
@@ -102,25 +103,39 @@ eq(feb25.filter((c) => c.inMonth).length, 28, '2025 年 2 月 28 天');
 const gSun = T.buildMonthGrid(2026, 9, 0);
 eq(T.dayKey(gSun[0].date), '2026-09-27', '周日为周首时第一格是 9/27');
 
-/* ---------- 7. 周 / 年 ---------- */
-const wk = T.buildWeekDays(D(2026, 10, 11), 1);
-eq(wk.length, 7, '一周 7 天');
-eq(T.dayKey(wk[0]), '2026-10-05', '周视图从周一开始');
-eq(T.dayKey(wk[6]), '2026-10-11', '周视图到周日结束');
+/* ---------- 7. 月视图的行 + 周号（周视图并入这里） ---------- */
+const rows = T.buildMonthRows(2026, 9, 1); // 2026 年 10 月
+eq(rows.length, 6, '6 行');
+eq(rows[0].days.length, 7, '每行 7 天');
+eq(T.dayKey(rows[0].days[0].date), '2026-09-28', '第一行从 9/28 开始');
+eq(rows.map((r) => r.week), [40, 41, 42, 43, 44, 45], '周号 40–45（与原插件一致）');
+eq(rows[1].week, 41, '含 10/11 的那行是第 41 周');
+eq(rows[0].weekYear, 2026, '周号所属年');
+const rows2 = T.buildMonthRows(2024, 11, 1); // 2024 年 12 月，跨年
+eq(rows2.map((r) => r.week), [48, 49, 50, 51, 52, 1], '跨年月的周号会回到 1');
+eq(rows2[5].weekYear, 2025, '跨年那一行归属 2025');
+eq(T.buildMonthRows(2026, 9, 1).reduce((n, r) => n + r.days.length, 0), 42, '6×7 = 42 天');
+
+/* ---------- 8. 年视图 ---------- */
 const yr = T.buildYearGrid(2026, 1);
 eq(yr.length, 12, '年视图 12 个月');
 eq(yr[0].label, '1月', '第一个月标签');
 eq(yr[11].label, '12月', '最后一个月标签');
 eq(yr.reduce((n, m) => n + m.cells.length, 0), 504, '12 × 42 = 504 格');
 
-/* ---------- 8. 路径拼接 ---------- */
+/* ---------- 9. 表头两段标题 ---------- */
+eq(T.monthLabel(D(2026, 10, 11)), '10月', '月份段');
+eq(T.monthLabel(D(2026, 1, 1)), '1月', '1 月不加零');
+eq(T.yearLabel(D(2026, 10, 11)), '2026', '年份段');
+
+/* ---------- 10. 路径拼接 ---------- */
 eq(T.notePath('B Listing/B3 日记清单', '2026-10-11【日记】'), 'B Listing/B3 日记清单/2026-10-11【日记】.md', '常规拼接');
 eq(T.notePath('', 'x'), 'x.md', '空文件夹 = 库根');
 eq(T.notePath('/', 'x'), 'x.md', '只有斜杠也当根');
 eq(T.notePath('a/b/', 'x'), 'a/b/x.md', '去掉尾部斜杠');
 eq(T.notePath(null, 'x'), 'x.md', 'null 文件夹不崩');
 
-/* ---------- 9. 核心日记配置解析 ---------- */
+/* ---------- 11. 核心日记配置解析 ---------- */
 const real = { folder: 'B Listing/B3 日记清单', template: '1 Obsidian/模板/YYYY-MM-DD【日记】.md', format: 'YYYY-MM-DD【日记】' };
 const parsedReal = T.parseDailyNotes(real, null);
 eq(parsedReal.folder, real.folder, '对象解析：文件夹');
@@ -133,7 +148,7 @@ eq(T.parseDailyNotes({ folder: 'x' }, null).format, 'YYYY-MM-DD', '缺 format �
 eq(T.parseDailyNotes({ format: '' }, null).format, 'YYYY-MM-DD', '空 format 用默认');
 eq(T.parseDailyNotes({ format: 123 }, null).format, 'YYYY-MM-DD', '类型不对也用默认');
 
-/* ---------- 10. 核心模板占位符替换 ---------- */
+/* ---------- 12. 核心模板占位符替换 ---------- */
 const fmt = (d, f) => (f === 'YYYY' ? String(d.getFullYear()) : T.dayKey(d));
 eq(T.substituteCoreTemplate('日期 {{date}}', { date: D(2026, 10, 11), now: D(2026, 10, 11), title: 'T' }, fmt), '日期 2026-10-11', '{{date}}');
 eq(T.substituteCoreTemplate('年 {{date:YYYY}}', { date: D(2026, 10, 11) }, fmt), '年 2026', '{{date:格式}}');
@@ -143,21 +158,18 @@ eq(T.substituteCoreTemplate('{{unknown}}', {}, fmt), '{{unknown}}', '未知占�
 eq(T.substituteCoreTemplate('', {}, fmt), '', '空文本返回空');
 eq(T.substituteCoreTemplate(null, {}, fmt), '', 'null 返回空');
 
-/* ---------- 11. 标题 / 平移 / 解析 ---------- */
-eq(T.viewTitle('year', D(2026, 10, 11), 1), '2026 年', '年标题');
-eq(T.viewTitle('month', D(2026, 10, 11), 1), '2026 年 10 月', '月标题');
-eq(T.viewTitle('week', D(2026, 10, 11), 1), '第 41 周 · 10月5–11日', '周标题');
-eq(T.viewTitle('week', D(2026, 1, 1), 1), '第 1 周 · 2025/12/29 – 2026/1/4', '跨年周标题带年份');
+/* ---------- 13. 平移 / 解析 ---------- */
 eq(T.dayKey(T.shiftCursor('month', D(2026, 1, 31), 1)), '2026-02-01', '月平移不溢出（1/31 → 2 月）');
 eq(T.dayKey(T.shiftCursor('month', D(2026, 1, 15), -1)), '2025-12-01', '月平移跨年');
-eq(T.dayKey(T.shiftCursor('week', D(2026, 10, 11), 1)), '2026-10-18', '周平移 +7 天');
-eq(T.viewTitle('year', T.shiftCursor('year', D(2026, 6, 1), 1), 1), '2027 年', '年平移');
+eq(T.shiftCursor('year', D(2026, 6, 1), 1).getFullYear(), 2027, '年平移 +1');
+eq(T.shiftCursor('year', D(2026, 6, 1), -1).getFullYear(), 2025, '年平移 -1');
 eq(T.dayKey(T.parseDayKey('2026-10-11')), '2026-10-11', 'parseDayKey 正常');
-eq(T.parseDayKey('2026-13-99'), null, 'parseDayKey 非法格式');
+eq(T.parseDayKey('2026-13-99'), null, 'parseDayKey 越界月/日');
+eq(T.parseDayKey('2026-02-30'), null, 'parseDayKey 2/30 不存在');
 eq(T.parseDayKey(''), null, 'parseDayKey 空串');
 eq(T.parseDayKey(null), null, 'parseDayKey null');
 
-/* ---------- 12. 导出 ---------- */
+/* ---------- 14. 导出 ---------- */
 ok(typeof SimpleCalendarPlugin === 'function', '默认导出是插件类');
 eq(SimpleCalendarPlugin.VIEW_TYPE, 'simple-calendar-view', '导出 VIEW_TYPE');
 

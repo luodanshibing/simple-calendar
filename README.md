@@ -20,9 +20,9 @@ This plugin does the same job with that gap closed, and adds year view.
 
 | Feature | Detail |
 |---|---|
-| **Month view** | 6×7 grid, always 42 cells so the height never jumps. Days with a note get a dot; today is highlighted. |
-| **Week view** | Seven rows, one per day, plus a **周记 →** button that opens or creates the weekly note. The button is outlined when that week's note already exists. |
+| **Month view + week numbers** | 6×7 grid (always 42 cells, so the height never jumps) with an **ISO week-number column** on the left — the same shape as the original Calendar. Click a day to open or create its daily note; **click a week number to open or create that week's note**. Days that have a note get a dot; today is highlighted. |
 | **Year view** | Twelve mini-months. Click a month name to jump into month view; click a cell to open that day. |
+| **Navigation** | `‹` `›` step by month (by year in year view) · click the **month name** to return to month view · click the **year number** to jump to year view · a **今天** button returns to today · Ctrl/Cmd+click opens in a new tab. |
 | **Open or create** | Click any day: opens the note if it exists, otherwise creates it from your template. Ctrl/Cmd+click opens in a new tab. |
 | **Templater first** | Creation goes through Templater, so `<% %>` in your template is really executed. Falls back to core `{{date}}`/`{{title}}` substitution, then to an empty file. |
 | **Follows your settings** | Reads the core Daily Notes plugin for folder / format / template. Weekly notes have their own format, folder and template (default folder = the daily folder). |
@@ -51,7 +51,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\deploy.ps1 -Vault "E:\
 
 | Section | Items |
 |---|---|
-| View | Default view (month / week / year) · week starts on (locale / Monday / Sunday) · mark days that have a note · open the calendar on startup |
+| View | Default view (month / year) · week starts on (locale / Monday / Sunday) · show the ISO week-number column · mark days that have a note · open the calendar on startup |
 | Daily | Follow the core Daily notes settings, or set format / folder / template yourself |
 | Weekly | Format (default `gggg-[第]WW[周【周记】]`) · folder (empty = same as daily) · template |
 | Create | Confirm before creating |
@@ -113,9 +113,9 @@ MIT — see [LICENSE](LICENSE).
 
 | 功能 | 说明 |
 |---|---|
-| **月视图** | 6×7 固定 42 格，翻月不会跳高度。有笔记的日子带小点，今天高亮。 |
-| **周视图** | 七天一行一天，外加一个 **周记 →** 按钮：生成或进入本周周记。那一周的周记已存在时，按钮会带边框。 |
+| **月视图 + 周号列** | 6×7 固定 42 格（翻月不会跳高度），左侧多一列 **ISO 周号** —— 与原插件同一种形态。点日期 = 进入或生成日记；**点周号 = 进入或生成那一周的周记**。有笔记的日子带小点，今天高亮。 |
 | **年视图** | 十二个迷你月。点月份名切到月视图，点格子进对应那天。 |
+| **导航** | `‹` `›` 按月翻（年视图里按年翻）· 点**月份名**回月视图 · 点**年份数字**跳年视图 · **今天**按钮回到当天 · Ctrl/Cmd + 点击在新标签页打开。 |
 | **进入或生成** | 点任意一天：有笔记就打开，没有就用你的模板生成。Ctrl/Cmd + 点击在新标签页打开。 |
 | **Templater 优先** | 生成走 Templater，模板里的 `<% %>` 会被真正执行；不可用时退回核心 `{{date}}`/`{{title}}` 替换，最后才建空文件。 |
 | **跟随你的设置** | 文件夹 / 格式 / 模板从核心「日记」插件读取；周记有自己的格式、目录、模板（目录留空 = 与日记同目录）。 |
@@ -144,7 +144,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\deploy.ps1 -Vault "E:\
 
 | 分组 | 项目 |
 |---|---|
-| 视图 | 默认视图（月 / 周 / 年）· 每周起始（跟随系统 / 周一 / 周日）· 标记有笔记的日子 · 启动时打开日历 |
+| 视图 | 默认视图（月 / 年）· 每周起始（跟随系统 / 周一 / 周日）· 显示 ISO 周号列 · 标记有笔记的日子 · 启动时打开日历 |
 | 日记 | 跟随核心「日记」设置，或自己指定格式 / 文件夹 / 模板 |
 | 周记 | 格式（默认 `gggg-[第]WW[周【周记】]`）· 文件夹（留空 = 与日记同目录）· 模板 |
 | 创建 | 新建前确认 |
