@@ -36,24 +36,18 @@
 <div class="cols">
 
   <div class="col">
-    <div class="label"><b>① 月视图（周号并入）</b> · 箭头在月/年两侧，「今天」独立在标题行 <code>月</code></div>
+    <div class="label"><b>① 月视图</b> · 箭头夹着 10月 2026，点 2026 进年视图，无视图按钮 <code>月</code></div>
     <div class="frame">
       <div class="simple-calendar">
         <div class="sc-header">
-          <div class="sc-title-row">
+          <div class="sc-nav-row">
+            <button class="sc-nav">‹</button>
             <div class="sc-titles">
               <button class="sc-title">10月</button>
               <button class="sc-title sc-title-year">2026</button>
             </div>
-            <button class="sc-today is-off">今天</button>
-          </div>
-          <div class="sc-nav-row">
-            <button class="sc-nav">‹</button>
-            <div class="sc-tabs">
-              <button class="sc-tab is-active">月</button>
-              <button class="sc-tab">年</button>
-            </div>
             <button class="sc-nav">›</button>
+            <button class="sc-today is-off">今天</button>
           </div>
         </div>
         <div class="sc-body"><div class="sc-grid sc-grid-month has-week" id="month-grid"></div></div>
@@ -62,21 +56,15 @@
   </div>
 
   <div class="col">
-    <div class="label"><b>② 年视图</b> · 点月份名回月视图，点格子进当天 <code>年</code></div>
+    <div class="label"><b>② 年视图</b> · 点 2026 回月视图，点月份名切到该月 <code>年</code></div>
     <div class="frame">
       <div class="simple-calendar">
         <div class="sc-header">
-          <div class="sc-title-row">
-            <div class="sc-titles"><button class="sc-title">2026</button></div>
-            <button class="sc-today">今天</button>
-          </div>
           <div class="sc-nav-row">
             <button class="sc-nav">‹</button>
-            <div class="sc-tabs">
-              <button class="sc-tab">月</button>
-              <button class="sc-tab is-active">年</button>
-            </div>
+            <div class="sc-titles"><button class="sc-title">2026</button></div>
             <button class="sc-nav">›</button>
+            <button class="sc-today">今天</button>
           </div>
         </div>
         <div class="sc-body"><div class="sc-year" id="year-grid"></div></div>
