@@ -1,0 +1,10 @@
+{
+  "id": "simple-calendar",
+  "name": "Simple Calendar",
+  "version": "1.0.0",
+  "minAppVersion": "1.5.0",
+  "description": "轻量日历：月/周/年视图，点击即生成或进入日记。",
+  "author": "luodanshibing",
+  "authorUrl": "",
+  "isDesktopOnly": false
+}

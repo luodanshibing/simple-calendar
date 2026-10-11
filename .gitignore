@@ -1,0 +1,14 @@
+# 插件运行时设置（只该存在于 vault 里，不跟仓库走）
+data.json
+
+# 依赖目录（本项目无构建依赖，留着以防以后引入）
+node_modules/
+
+# 部署脚本产生的旧版备份
+_backup/
+
+# 系统 / 编辑器杂物
+Thumbs.db
+desktop.ini
+.DS_Store
+*.tmp

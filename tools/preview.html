@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>Simple Calendar · 月 / 周 / 年三种视图</title>
+<style>
+  /* Obsidian 亮色主题变量的近似值，让插件样式表能取到变量 */
+  .frame {
+    --background-primary: #ffffff;
+    --background-secondary: #f6f6f6;
+    --background-modifier-border: #e0e0e0;
+    --background-modifier-hover: #ececec;
+    --text-normal: #2e3338;
+    --text-muted: #888888;
+    --text-faint: #aaaaaa;
+    --interactive-accent: #7f6df2;
+    --text-on-accent: #ffffff;
+    --font-interface: system-ui, "Microsoft YaHei", sans-serif;
+  }
+  body { margin: 0; padding: 20px; background: #2b2b2b; font-family: system-ui, "Microsoft YaHei", sans-serif; }
+  .cols { display: flex; gap: 18px; align-items: flex-start; }
+  .col { width: 330px; }
+  .label { color: #e5e5e5; font-size: 13px; margin: 0 0 8px; }
+  .label b { color: #fff; }
+  .label code { color: #a5b4fc; }
+  /* 侧边栏宽度（约 330px）下的真实观感 */
+  .frame {
+    box-sizing: border-box; width: 330px; height: 430px; overflow: hidden;
+    background: var(--background-primary);
+    border: 1px solid #444; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,.4);
+    font-family: var(--font-interface);
+    color: var(--text-normal);
+  }
+</style>
+<!-- 插件自己的样式表（改插件样式后重跑 tools/shot-preview.ps1 即可同步） -->
+<link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+<div class="cols">
+
+  <div class="col">
+    <div class="label"><b>① 月视图</b> · 点击日期进入或生成日记 <code>月</code></div>
+    <div class="frame">
+      <div class="simple-calendar">
+        <div class="sc-header">
+          <div class="sc-nav-row">
+            <button class="sc-nav">‹</button>
+            <button class="sc-title">2026 年 10 月</button>
+            <button class="sc-nav">›</button>
+          </div>
+          <div class="sc-tabs">
+            <button class="sc-tab is-active">月</button>
+            <button class="sc-tab">周</button>
+            <button class="sc-tab">年</button>
+          </div>
+        </div>
+        <div class="sc-body"><div class="sc-grid sc-grid-month" id="month-grid"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col">
+    <div class="label"><b>② 周视图</b> · 「周记 →」生成或进入本周周记 <code>周</code></div>
+    <div class="frame">
+      <div class="simple-calendar">
+        <div class="sc-header">
+          <div class="sc-nav-row">
+            <button class="sc-nav">‹</button>
+            <button class="sc-title">第 41 周 · 10月5–11日</button>
+            <button class="sc-nav">›</button>
+          </div>
+          <div class="sc-tabs">
+            <button class="sc-tab">月</button>
+            <button class="sc-tab is-active">周</button>
+            <button class="sc-tab">年</button>
+            <button class="sc-tab sc-weekly has-note">周记 →</button>
+          </div>
+        </div>
+        <div class="sc-body">
+          <div class="sc-week">
+            <div class="sc-week-row"><div class="sc-week-dow">周一</div><div class="sc-week-date">10/5</div><div class="sc-dot-slot has-note"></div><div class="sc-week-hint">进入 / 生成</div></div>
+            <div class="sc-week-row"><div class="sc-week-dow">周二</div><div class="sc-week-date">10/6</div><div class="sc-dot-slot has-note"></div><div class="sc-week-hint">进入 / 生成</div></div>
+            <div class="sc-week-row"><div class="sc-week-dow">周三</div><div class="sc-week-date">10/7</div><div class="sc-dot-slot"></div><div class="sc-week-hint">进入 / 生成</div></div>
+            <div class="sc-week-row"><div class="sc-week-dow">周四</div><div class="sc-week-date">10/8</div><div class="sc-dot-slot has-note"></div><div class="sc-week-hint">进入 / 生成</div></div>
+            <div class="sc-week-row"><div class="sc-week-dow">周五</div><div class="sc-week-date">10/9</div><div class="sc-dot-slot"></div><div class="sc-week-hint">进入 / 生成</div></div>
+            <div class="sc-week-row"><div class="sc-week-dow">周六</div><div class="sc-week-date">10/10</div><div class="sc-dot-slot has-note"></div><div class="sc-week-hint">进入 / 生成</div></div>
+            <div class="sc-week-row is-today"><div class="sc-week-dow">周日</div><div class="sc-week-date">10/11</div><div class="sc-dot-slot"></div><div class="sc-week-hint">进入 / 生成</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col">
+    <div class="label"><b>③ 年视图</b> · 点月份切回月视图，点格子进当天 <code>年</code></div>
+    <div class="frame">
+      <div class="simple-calendar">
+        <div class="sc-header">
+          <div class="sc-nav-row">
+            <button class="sc-nav">‹</button>
+            <button class="sc-title is-offset">2026 年</button>
+            <button class="sc-nav">›</button>
+          </div>
+          <div class="sc-tabs">
+            <button class="sc-tab">月</button>
+            <button class="sc-tab">周</button>
+            <button class="sc-tab is-active">年</button>
+          </div>
+        </div>
+        <div class="sc-body"><div class="sc-year" id="year-grid"></div></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  // 仅用于预览页：按插件同款规则生成月网格与年网格
+  const WD = ['日', '一', '二', '三', '四', '五', '六'];
+  const MONTHS = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+  const START = 1; // 周一为周首
+
+  function startOfWeek(d) {
+    const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    const shift = (x.getDay() - START + 7) % 7;
+    x.setDate(x.getDate() - shift);
+    return x;
+  }
+  function addDays(d, n) {
+    const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    x.setDate(x.getDate() + n);
+    return x;
+  }
+  function key(d) {
+    const p = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  }
+  function grid(year, month) {
+    const first = startOfWeek(new Date(year, month, 1));
+    const cells = [];
+    for (let i = 0; i < 42; i += 1) {
+      const d = addDays(first, i);
+      cells.push({ d: d, inMonth: d.getMonth() === month });
+    }
+    return cells;
+  }
+
+  // 有笔记的日子（示例数据）
+  const HAVE = new Set(['2026-09-29','2026-10-02','2026-10-05','2026-10-06','2026-10-08','2026-10-10','2026-10-14','2026-10-20','2026-10-21']);
+  const TODAY = '2026-10-11';
+
+  // ① 月视图
+  const mg = document.getElementById('month-grid');
+  for (let i = 0; i < 7; i += 1) {
+    const el = document.createElement('div');
+    el.className = 'sc-dow';
+    el.textContent = WD[(START + i) % 7];
+    mg.appendChild(el);
+  }
+  for (const c of grid(2026, 9)) {
+    const k = key(c.d);
+    const el = document.createElement('div');
+    el.className = 'sc-cell' + (c.inMonth ? '' : ' is-out') + (k === TODAY ? ' is-today' : '');
+    const num = document.createElement('div');
+    num.className = 'sc-daynum';
+    num.textContent = c.d.getDate();
+    el.appendChild(num);
+    const slot = document.createElement('div');
+    slot.className = 'sc-dot-slot' + (HAVE.has(k) ? ' has-note' : '');
+    el.appendChild(slot);
+    mg.appendChild(el);
+  }
+
+  // ③ 年视图
+  const yg = document.getElementById('year-grid');
+  for (let m = 0; m < 12; m += 1) {
+    const box = document.createElement('div');
+    box.className = 'sc-mini';
+    const t = document.createElement('div');
+    t.className = 'sc-mini-title';
+    t.textContent = MONTHS[m];
+    box.appendChild(t);
+    const g = document.createElement('div');
+    g.className = 'sc-mini-grid';
+    for (const c of grid(2026, m)) {
+      const k = key(c.d);
+      const cell = document.createElement('div');
+      cell.className = 'sc-mini-cell' + (c.inMonth ? '' : ' is-out') + (k === TODAY ? ' is-today' : '');
+      const slot = document.createElement('div');
+      slot.className = 'sc-dot-slot' + (HAVE.has(k) ? ' has-note' : '');
+      cell.appendChild(slot);
+      g.appendChild(cell);
+    }
+    box.appendChild(g);
+    yg.appendChild(box);
+  }
+</script>
+</body>
+</html>

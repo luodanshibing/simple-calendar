@@ -1,0 +1,277 @@
+/* Simple Calendar — 轻量日历样式
+   全部使用 Obsidian 主题变量，自动适配亮/暗主题 */
+
+.simple-calendar-container {
+  padding: 0;
+}
+
+.simple-calendar {
+  padding: 8px 10px 14px;
+  font-size: 13px;
+  color: var(--text-normal);
+}
+
+/* ---------- 表头 ---------- */
+.sc-header {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.sc-nav-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.sc-nav {
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  font-size: 16px;
+  line-height: 1;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  box-shadow: none;
+  cursor: pointer;
+}
+
+.sc-nav:hover {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
+}
+
+.sc-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 3px 8px;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text-normal);
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  box-shadow: none;
+  cursor: pointer;
+}
+
+.sc-title:hover {
+  background: var(--background-modifier-hover);
+}
+
+.sc-title.is-offset {
+  color: var(--text-muted);
+}
+
+.sc-tabs {
+  display: flex;
+  gap: 4px;
+}
+
+.sc-tab {
+  flex: 1 1 0;
+  padding: 3px 0;
+  font-size: 12px;
+  color: var(--text-muted);
+  background: var(--background-secondary);
+  border: 1px solid transparent;
+  border-radius: 6px;
+  box-shadow: none;
+  cursor: pointer;
+}
+
+.sc-tab:hover {
+  background: var(--background-modifier-hover);
+}
+
+.sc-tab.is-active {
+  color: var(--text-on-accent);
+  background: var(--interactive-accent);
+}
+
+.sc-weekly {
+  flex: 0 0 auto;
+  padding: 3px 8px;
+  white-space: nowrap;
+}
+
+.sc-weekly.has-note {
+  color: var(--text-normal);
+  border-color: var(--background-modifier-border);
+}
+
+/* ---------- 月视图 ---------- */
+.sc-grid-month {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+
+.sc-dow {
+  padding-bottom: 2px;
+  font-size: 11px;
+  text-align: center;
+  color: var(--text-faint);
+}
+
+.sc-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 30px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.sc-cell:hover {
+  background: var(--background-modifier-hover);
+}
+
+.sc-cell.is-out {
+  color: var(--text-faint);
+}
+
+.sc-cell.is-today {
+  color: var(--text-on-accent);
+  background: var(--interactive-accent);
+  font-weight: 700;
+}
+
+.sc-daynum {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.sc-dot-slot {
+  width: 4px;
+  height: 4px;
+  margin-top: 1px;
+  border-radius: 50%;
+  background: transparent;
+}
+
+.sc-dot-slot.has-note {
+  background: var(--text-muted);
+}
+
+.sc-cell.is-today .sc-dot-slot.has-note {
+  background: var(--text-on-accent);
+}
+
+/* ---------- 周视图 ---------- */
+.sc-week {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.sc-week-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  background: var(--background-secondary);
+  cursor: pointer;
+}
+
+.sc-week-row:hover {
+  background: var(--background-modifier-hover);
+}
+
+.sc-week-row.is-today {
+  outline: 1px solid var(--interactive-accent);
+  outline-offset: -1px;
+}
+
+.sc-week-dow {
+  flex: 0 0 34px;
+  font-weight: 600;
+}
+
+.sc-week-date {
+  flex: 0 0 48px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.sc-week-hint {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.sc-week-row:hover .sc-week-hint {
+  color: var(--text-muted);
+}
+
+/* ---------- 年视图（迷你月） ---------- */
+.sc-year {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.sc-mini {
+  min-width: 0;
+}
+
+.sc-mini-title {
+  margin-bottom: 2px;
+  font-size: 11px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.sc-mini-title:hover {
+  color: var(--text-normal);
+}
+
+.sc-mini-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 1px;
+}
+
+.sc-mini-cell {
+  height: 9px;
+  border-radius: 2px;
+  background: var(--background-secondary);
+  cursor: pointer;
+}
+
+.sc-mini-cell.is-out {
+  opacity: 0.35;
+}
+
+.sc-mini-cell:hover {
+  background: var(--background-modifier-hover);
+}
+
+.sc-mini-cell.is-today {
+  background: var(--interactive-accent);
+}
+
+.sc-mini-cell .sc-dot-slot {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  border-radius: 2px;
+}
+
+.sc-mini-cell .sc-dot-slot.has-note {
+  background: var(--text-faint);
+}
+
+.sc-mini-cell.is-out .sc-dot-slot {
+  display: none;
+}
