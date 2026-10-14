@@ -689,9 +689,14 @@ class CalendarView extends ItemView {
       if (!slot) continue;
       const date = parseDayKey(el.getAttribute('data-date'));
       if (!date) continue;
-      const path = this.plugin.pathFor(date, this.cfg.daily);
-      const cls = dotClassFor(this.plugin.isExisting(path), this.plugin.hasOpenTask(path));
-      slot.className = 'sc-dot-slot' + (cls ? ' ' + cls : '');
+      try {
+        const path = this.plugin.pathFor(date, this.cfg.daily);
+        const cls = dotClassFor(this.plugin.isExisting(path), this.hasOpenTask(path));
+        slot.className = 'sc-dot-slot' + (cls ? ' ' + cls : '');
+      } catch (e) {
+        /* 单个格子出错不影响其它格子 */
+        slot.className = 'sc-dot-slot';
+      }
     }
   }
 
