@@ -257,16 +257,22 @@
    没有笔记 → 不画点
    有笔记 + 有未完成待办 → 空心：放大到 6px + 强调色圆环（4px 里塞 1px 的孔几乎看不见）
    有笔记 + 无未完成待办 → 实心：4px 圆点（原样） */
+
+/* ---------- three-state dots: hollow = 6px ring with a 1px stroke ----------
+   no note -> no dot; note + unfinished to-do -> hollow; note + all done -> solid.
+   IMPORTANT: every hollow rule must also set background: transparent, otherwise
+   the theme's dot colour fills the ring and it looks solid (that was the bug). */
 .sc-dot-slot.has-note.has-open-task {
   width: 6px;
   height: 6px;
   margin-top: 0;
   background: transparent;
-  box-shadow: inset 0 0 0 2px var(--interactive-accent);
+  box-shadow: inset 0 0 0 1px var(--interactive-accent);
 }
 
 .sc-cell.is-today .sc-dot-slot.has-note.has-open-task {
-  box-shadow: inset 0 0 0 2px var(--text-on-accent);
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--text-on-accent);
 }
 
 .sc-mini-cell .sc-dot-slot.has-note.has-open-task {
@@ -274,9 +280,10 @@
   height: 100%;
   margin: 0;
   background: transparent;
-  box-shadow: inset 0 0 0 1.5px var(--interactive-accent);
+  box-shadow: inset 0 0 0 1px var(--interactive-accent);
 }
 
 .sc-mini-cell.is-today .sc-dot-slot.has-note.has-open-task {
-  box-shadow: inset 0 0 0 1.5px var(--text-on-accent);
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--text-on-accent);
 }
