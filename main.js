@@ -269,7 +269,7 @@ class SimpleCalendarPlugin extends Plugin {
 
     this.registerView(VIEW_TYPE, (leaf) => new CalendarView(leaf, this));
 
-    this.addCommand({ id: 'open-calendar', name: '打开日历（侧边栏）', callback: () => this.activateView() });
+    this.addCommand({ id: 'open-calendar', name: '打开日历', callback: () => this.activateView() });
     this.addCommand({
       id: 'open-today-daily',
       name: '打开今天的日记',
@@ -750,7 +750,7 @@ class CalendarSettingTab extends PluginSettingTab {
     containerEl.createEl('h3', { text: '视图' });
     new Setting(containerEl)
       .setName('默认视图')
-      .setDesc('打开日历时显示月还是年（周号已并入月视图）')
+      .setDesc('打开日历时显示月还是年')
       .addDropdown((d) =>
         d
           .addOption('month', '月')
@@ -788,7 +788,7 @@ class CalendarSettingTab extends PluginSettingTab {
       .addToggle((t) => t.setValue(!!s.showDots).onChange(bind('showDots')));
     new Setting(containerEl)
       .setName('启动时打开日历')
-      .setDesc('若侧边栏里还没有日历，启动时自动打开（关掉则要手动从命令面板打开）')
+      .setDesc('启动时若侧边栏没有日历就自动打开')
       .addToggle((t) => t.setValue(!!s.openOnStart).onChange(bind('openOnStart')));
 
     /* ---------- 日记 ---------- */
