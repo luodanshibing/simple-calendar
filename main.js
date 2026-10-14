@@ -466,14 +466,29 @@ class SimpleCalendarPlugin extends Plugin {
       if (!slot) continue;
       const date = parseDayKey(el.getAttribute('data-date'));
       if (!date) continue;
-      const stat = await this.taskStatFor(date, cfg);
+      let stat = null;
+      try {
+        stat = await this.taskStatFor(date, cfg);
+      } catch (e) {
+        stat = null; // 单个文件读失败不许中断整月（一处抛错=整月不画点，v1.3.10 的教训）
+      }
       if (typeof el.isConnected === 'boolean' && !el.isConnected) continue; // 期间重绘过
-      if (!stat) continue; // 没有笔记：什么都不画
+      if (!stat) continue; // 没有笔记 → 什么都不画
+      /*
+       * 用户 2026-10-14 定稿：
+       *   没有笔记                → 什么都不画（上面 continue）
+       *   有笔记 + 有未完成待办    → 空心点
+       *   有笔记 + 没有未完成      → 实心点
+       * 「有笔记但这天没有待办复选框」按"没有未完成"处理 → 实心
+       * （依据他的规则直接推出；若某天完全没写待办也显示实心，符合"有笔记就有点"的期望。）
+       */
       slot.classList.add('has-note');
-      if (!stat.hasAny) continue; // 有笔记但没有待办 → 不画点
-      slot.classList.add('has-task');
-      if (stat.allDone) slot.classList.add('is-all-done');
-      slot.setAttribute('title', stat.allDone ? '待办已全部完成' : '还有 ' + stat.pending + ' 项待办未完成');
+      if (stat.hasAny && !stat.allDone) {
+        slot.setAttribute('title', '还有 ' + stat.pending + ' 项待办未完成');
+      } else {
+        slot.classList.add('is-all-done');
+        slot.setAttribute('title', stat.hasAny ? '待办已全部完成' : '没有未完成的待办');
+      }
     }
   }
 

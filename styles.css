@@ -169,13 +169,13 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* 待办状态点（用户 2026-10-14 定稿，只有三种状态）：
- *   没有笔记            → 什么都不画（默认就是不可见，所以"无笔记"天然没有点）
- *   有笔记、有待办未完成 → 空心点
- *   有笔记、待办全完成   → 实心点
- *   有笔记、没有待办     → 也不画点（has-note 本身不产生可见图形）
- * 注意：.sc-dot-slot 本身必须是**不可见**的 —— v1.3.10 就是因为我给它加了边框，
- *       导致每个日期（包括没有笔记的）都显示一个空心圈。
+/* 待办状态点（用户 2026-10-14 定稿三条规则）：
+ *   没有笔记            → 什么都不画（.sc-dot-slot 默认 opacity:0）
+ *   有笔记 + 有未完成    → 空心点（has-note，未加 is-all-done）
+ *   有笔记 + 没有未完成  → 实心点（has-note.is-all-done）
+ * ⚠️ 可见性只看 has-note（**有笔记就画点**）。v1.3.5 我误写成"必须 has-task 才可见"，
+ *    结果"有笔记但没有待办复选框（或待办写在引用块里）"的日期什么都不画。
+ * ⚠️ .sc-dot-slot 默认必须不可见：v1.3.10 我给它加边框导致每个日期都显示空心圈。
  */
 .sc-dot-slot {
   width: 6px;
@@ -188,22 +188,22 @@
   opacity: 0;
 }
 
-/* 有笔记 + 有待办：空心点（未完成） */
-.sc-dot-slot.has-note.has-task {
+/* 有笔记 → 空心点 */
+.sc-dot-slot.has-note {
   opacity: 1;
 }
 
-/* 有笔记 + 待办全部完成：实心点 */
-.sc-dot-slot.has-note.has-task.is-all-done {
+/* 有笔记且没有未完成 → 实心点 */
+.sc-dot-slot.has-note.is-all-done {
   background: var(--text-muted);
 }
 
 /* 今天那格底色是强调色，点用对比色 */
-.sc-cell.is-today .sc-dot-slot.has-note.has-task {
+.sc-cell.is-today .sc-dot-slot.has-note {
   border-color: var(--text-on-accent);
 }
 
-.sc-cell.is-today .sc-dot-slot.has-note.has-task.is-all-done {
+.sc-cell.is-today .sc-dot-slot.has-note.is-all-done {
   background: var(--text-on-accent);
 }
 
