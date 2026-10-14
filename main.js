@@ -822,7 +822,9 @@ class CalendarView extends ItemView {
      * 只在**月视图**读正文（≤42 天，带 mtime 缓存）；年视图保持零读取，只标"有笔记"。
      * 并且：装饰失败绝不影响点击（自己吞异常 + 补 has-note 兜底）。
      */
-    const decorate = this.view === 'year' ? null : this.decorateTasks.bind(this);
+    // ⚠️ decorateTasks 定义在**插件**上，视图里必须写 this.plugin.decorateTasks
+    // （v1.3.11 之前写的是 this.decorateTasks → undefined → draw() 抛错 → 点位整段不执行）
+    const decorate = this.view === 'year' ? null : this.plugin.decorateTasks.bind(this.plugin);
     this.debugTrace = 'draw() 执行到装饰点：view=' + this.view +
       ' showDots=' + this.settings.showDots +
       ' decorate=' + (decorate ? '有' : '无') +
