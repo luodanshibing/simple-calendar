@@ -134,25 +134,6 @@ function isoWeekYear(date) {
   return d.getUTCFullYear();
 }
 
-/**
- * 统计一段文本里的待办（日历点位用）。
- *   · `- [ ]` / `* [x]` / `+ [X]` / 有序列表 `1. [ ]` / 任意缩进都算；
- *   · `total === done` 且 total > 0 → 全部完成。
- * 返回 { total, done, pending, hasAny, allDone }
- */
-function countTasks(text) {
-  const src = String(text == null ? '' : text);
-  const re = /^[ \t]*(?:[-*+]|\d+[.)])[ \t]+\[([ xX])\]/gm;
-  let total = 0;
-  let done = 0;
-  let m;
-  while ((m = re.exec(src)) !== null) {
-    total += 1;
-    if (m[1] !== ' ') done += 1;
-  }
-  return { total: total, done: done, pending: total - done, hasAny: total > 0, allDone: total > 0 && done === total };
-}
-
 /** 月视图网格（扁平 42 格，年视图的迷你月用它） */
 function buildMonthGrid(year, month, weekStartsOn) {
   const gridStart = startOfWeek(new Date(year, month, 1), weekStartsOn);
@@ -281,12 +262,6 @@ class SimpleCalendarPlugin extends Plugin {
     super(...arguments);
     /** 解析后的日记/周记配置缓存（设置变更时清掉，避免每次渲染都读配置） */
     this.configCache = null;
-    /** 待办统计缓存：path → { mtime, stat }（只缓存当前可见月份，库变动时清空） */
-    this.taskCache = new Map();
-    /** 诊断用：装饰执行轨迹与错误（"点不显示"这类问题必须留痕，不许静默吞） */
-    this.debugTrace = '';
-    this.debugError = '';
-    this.debugCount = null;
   }
 
   async onload() {
@@ -304,19 +279,6 @@ class SimpleCalendarPlugin extends Plugin {
       id: 'open-this-week',
       name: '打开本周的周记',
       callback: () => this.openOrCreate('weekly', new Date(), false),
-    });
-
-    // 一次性诊断（排查"日期点不显示"，2026-10-14）：只读，导出到库根 .simple-calendar-diag.txt
-    this.addCommand({
-      id: 'diagnose-dots',
-      name: '导出日历点位诊断',
-      callback: () => this.dumpDotDiagnosis(),
-    });
-    // 手动触发一次点位装饰：用来判定"是装饰逻辑坏了"还是"触发链没跑起来"
-    this.addCommand({
-      id: 'redraw-dots-now',
-      name: '立即重算日期点',
-      callback: () => this.runDotsNow(),
     });
 
     this.addSettingTab(new CalendarSettingTab(this.app, this));
@@ -440,218 +402,6 @@ class SimpleCalendarPlugin extends Plugin {
     return this.app.vault.getAbstractFileByPath(normalizePath(path)) instanceof TFile;
   }
 
-  /* ---------------- 待办状态点（只读当前可见的 ≤42 天，带 mtime 缓存） ----------------
-   * 用户 2026-10-14 定稿的**三条规则**（不要第四种状态）：
-   *   没有笔记            → 什么都不画
-   *   有笔记、有待办未完成 → 空心点
-   *   有笔记、待办全完成   → 实心点
-   *   有笔记、没有待办     → 不画点
-   * 设计红线第 2 条是"不读正文"（Calendar 就是逐天读文件才变慢）；这里只读月视图可见范围，
-   * 且按 mtime 缓存；年视图完全不读正文。
-   */
-
-  /** 读一天的日记并统计待办（带 mtime 缓存；读不到就当"没有笔记"） */
-  async taskStatFor(date, cfg) {
-    const d = (this.debugCount = this.debugCount || { calls: 0, noFile: 0, cacheHit: 0, readErr: 0, readOk: 0, null: 0 });
-    d.calls += 1;
-    const path = normalizePath(this.pathFor(date, cfg));
-    const file = this.app.vault.getAbstractFileByPath(path);
-    if (!(file instanceof TFile)) {
-      d.noFile += 1;
-      this.taskCache.set(path, { mtime: -1, stat: null });
-      return null;
-    }
-    const cached = this.taskCache.get(path);
-    if (cached && cached.mtime === file.stat.mtime) {
-      d.cacheHit += 1;
-      return cached.stat;
-    }
-    let stat = null;
-    try {
-      stat = countTasks(await this.app.vault.cachedRead(file));
-      d.readOk += 1;
-    } catch (e) {
-      d.readErr += 1;
-      stat = null;
-    }
-    if (!stat) d.null += 1;
-    this.taskCache.set(path, { mtime: file.stat.mtime, stat: stat });
-    return stat;
-  }
-
-  /**
-   * 给月视图的日期画"空心/实心点"。
-   *
-   * 用户 2026-10-14 定稿（**只有三种状态**）：
-   *   没有笔记              → 什么都不画
-   *   有笔记 + 有未完成待办  → 空心点
-   *   有笔记 + 没有未完成    → 实心点
-   * 「有笔记但这天没有待办复选框」按"没有未完成"处理 → 实心（否则这种日子会没有点）。
-   *
-   * ⚠️ 两点必须守住（都是踩过的坑）：
-   *   ① **不要**在读完之前先画"有笔记"的中间态 —— 那会把"还没读完"显示成空心点；
-   *   ② 单个文件读失败不许中断整月（一处抛错=整月不画点）。
-   * 所以这里并发读取，全部拿到结果后再统一上类名。
-   */
-  async decorateTasks(scope) {
-    if (!this.settings.showDots) return;
-    const config = await this.resolveConfig();
-    if (!config) return;
-    const cfg = config.daily;
-    const cells = scope.querySelectorAll('[data-date]');
-    const jobs = [];
-    for (let i = 0; i < cells.length; i += 1) {
-      const el = cells[i];
-      const slot = el.querySelector('.sc-dot-slot');
-      if (!slot) continue;
-      const date = parseDayKey(el.getAttribute('data-date'));
-      if (!date) continue;
-      jobs.push(
-        this.taskStatFor(date, cfg).then(
-          (stat) => ({ el: el, slot: slot, stat: stat }),
-          () => ({ el: el, slot: slot, stat: null }) // 读失败当"没有笔记"，绝不中断整月
-        )
-      );
-    }
-    const results = await Promise.all(jobs);
-    let applied = 0;
-    for (const r of results) {
-      if (typeof r.el.isConnected === 'boolean' && !r.el.isConnected) continue; // 期间重绘过
-      if (!r.stat) continue; // 没有笔记 → 什么都不画
-      const slot = r.slot;
-      slot.classList.add('has-note');
-      if (r.stat.hasAny && !r.stat.allDone) {
-        slot.setAttribute('title', '还有 ' + r.stat.pending + ' 项待办未完成');
-      } else {
-        slot.classList.add('is-all-done');
-        slot.setAttribute('title', r.stat.hasAny ? '待办已全部完成' : '没有未完成的待办');
-      }
-      applied += 1;
-    }
-    this.debugTrace = '装饰完成：格子 ' + cells.length + ' / 任务 ' + jobs.length +
-      ' / 有笔记 ' + results.filter((r) => r.stat).length + ' / 上色 ' + applied;
-  }
-
-  /** 手动重算一次日期点（诊断用）：直接对当前日历 DOM 跑装饰 */
-  async runDotsNow() {
-    try {
-      const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE);
-      const view = leaves && leaves[0] && leaves[0].view;
-      const root = view && view.contentEl;
-      if (!root) {
-        new Notice('先打开日历再运行本命令', 6000);
-        return;
-      }
-      this.debugTrace = '';
-      this.debugCount = null;
-      await this.decorateTasks(root);
-      new Notice('已重算：' + (this.debugTrace || '（没有结果）'), 8000);
-    } catch (e) {
-      this.debugError = (this.debugError || '') + '\n[' + new Date().toISOString() + '] 手动重算失败：' +
-        ((e && e.stack) || (e && e.message) || String(e));
-      new Notice('重算失败：' + ((e && e.message) || e), 8000);
-    }
-  }
-
-  /** 导出"日期点"诊断到库根（只读，不修改任何笔记） */
-  async dumpDotDiagnosis() {
-    const out = [];
-    const push = (s) => out.push(s);
-    push('simple-calendar 点位诊断  ' + new Date().toISOString());
-    push('showDots = ' + this.settings.showDots + '   followDailyNotes = ' + this.settings.followDailyNotes);
-    try {
-      const core = await this.readCoreDailyNotes();
-      push('核心日记配置：folder=' + JSON.stringify(core.folder) + ' format=' + JSON.stringify(core.format));
-    } catch (e) {
-      push('核心日记配置读取失败：' + (e && e.message));
-    }
-    let cfg = null;
-    try {
-      const config = await this.resolveConfig();
-      cfg = config && config.daily;
-      push('解析后 daily：folder=' + JSON.stringify(cfg && cfg.folder) + ' format=' + JSON.stringify(cfg && cfg.format));
-    } catch (e) {
-      push('resolveConfig 失败：' + (e && e.message));
-    }
-    push('vault.cachedRead 可用？' + (typeof this.app.vault.cachedRead === 'function'));
-    push('vault.read 可用？' + (typeof this.app.vault.read === 'function'));
-
-    if (cfg) {
-      push('');
-      push('--- 最近 5 天：路径 / 是否存在 / 待办统计 ---');
-      for (let k = 0; k < 5; k += 1) {
-        const d = new Date();
-        d.setDate(d.getDate() - k);
-        let path = '';
-        try {
-          path = normalizePath(this.pathFor(d, cfg));
-        } catch (e) {
-          path = '(pathFor 抛错: ' + (e && e.message) + ')';
-        }
-        const f = this.app.vault.getAbstractFileByPath(path);
-        let statText = '（未读）';
-        if (f instanceof TFile) {
-          try {
-            const st = countTasks(await this.app.vault.cachedRead(f));
-            statText = JSON.stringify(st);
-          } catch (e) {
-            statText = '读取抛错：' + (e && e.message);
-          }
-        }
-        push('  ' + path + '  存在=' + (f instanceof TFile) + '  ' + statText);
-      }
-    }
-
-    push('');
-    push('--- 装饰过程记录 ---');
-    push('执行轨迹：' + (this.debugTrace || '（装饰从未跑完）'));
-    push('最近一次装饰错误：' + (this.debugError || '（无）'));
-    push('taskCache 条目数：' + (this.taskCache ? this.taskCache.size : '（未初始化）'));
-    push('taskStatFor 分支计数：' + JSON.stringify(this.debugCount || null));
-    push('');
-
-    push('--- 当前日历里点位的实际类名（前 20 格）---');
-    let cells = [];
-    try {
-      const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE);
-      const view = leaves && leaves[0] && leaves[0].view;
-      const root = view && view.contentEl;
-      if (!root) {
-        push('拿不到日历视图（先打开日历再运行本命令）');
-      } else {
-        cells = root.querySelectorAll('[data-date]');
-        push('日期格数量 = ' + cells.length);
-        for (let i = 0; i < cells.length && i < 20; i += 1) {
-          const el = cells[i];
-          const slot = el.querySelector('.sc-dot-slot');
-          push('  ' + el.getAttribute('data-date') + '  dot槽=' + (slot ? '有' : '无') + '  class=[' + (slot ? slot.className : '') + ']');
-        }
-      }
-    } catch (e) {
-      push('读取 DOM 失败：' + (e && e.message));
-    }
-
-    const body = out.join('\n') + '\n';
-    const path = '.simple-calendar-diag.txt';
-    let how = '';
-    try {
-      await this.app.vault.adapter.write(path, body);
-      how = 'adapter.write';
-    } catch (e1) {
-      try {
-        const f = this.app.vault.getAbstractFileByPath(path);
-        if (f) await this.app.vault.modify(f, body);
-        else await this.app.vault.create(path, body);
-        how = 'vault.modify/create';
-      } catch (e2) {
-        console.log('[simple-calendar] 诊断：\n' + body);
-        new Notice('诊断写不进文件，已打印到控制台', 8000);
-        return;
-      }
-    }
-    new Notice('已导出点位诊断到库根 ' + path + '（' + how + '）', 6000);
-  }
-
   /* ---------------- 打开 / 新建 ---------------- */
 
   /**
@@ -772,14 +522,7 @@ class CalendarView extends ItemView {
     this.rendering = true;
     try {
       this.cfg = await this.plugin.resolveConfig();
-      try {
-        this.draw();
-      } catch (e) {
-        // draw() 抛错会被这里吞掉（日历照样显示），但"点位不画"正是它的后果 —— 必须留痕
-        this.plugin.debugError = (this.plugin.debugError || '') +
-          '\n[' + new Date().toISOString() + '] draw() 抛错：' + ((e && e.stack) || (e && e.message) || String(e));
-        console.error('[simple-calendar] draw() 抛错', e);
-      }
+      this.draw();
     } finally {
       this.rendering = false;
     }
@@ -800,45 +543,9 @@ class CalendarView extends ItemView {
     if (this.view === 'year') this.buildYear(body, ws, today);
     else this.buildMonth(body, ws, today);
 
-    // 先把点击委托挂上，再做别的事 —— 否则后面任何一步抛错都会让"点日期没反应"（v1.3.10 的教训）
     if (!this.handler) {
       this.handler = (e) => this.onClick(e, ws);
       root.addEventListener('click', this.handler);
-    }
-
-    /*
-     * v1.3.6 的坑：这里曾同步调 markExisting() 先标"有笔记"（= 空心点），
-     * 而"实心点"要等异步读完待办才补上 —— 于是你在读完之前看到的**全是空心点**，
-     * 也就是把"还没读完"画成了"有未完成待办"。
-     * 现在改为：**读完再画**（异步补最终类名），中间态不画任何点。42 个文件的读取是毫秒级。
-     */
-
-    /*
-     * 待办状态点（用户 2026-10-14 定稿三条规则）：
-     *   没有笔记            → 什么都不画
-     *   有笔记、有待办未完成 → 空心点
-     *   有笔记、待办全完成   → 实心点
-     *   有笔记、没有待办     → 不画点（用户明确不要这一态）
-     * 只在**月视图**读正文（≤42 天，带 mtime 缓存）；年视图保持零读取，只标"有笔记"。
-     * 并且：装饰失败绝不影响点击（自己吞异常 + 补 has-note 兜底）。
-     */
-    // ⚠️ decorateTasks 定义在**插件**上，视图里必须写 this.plugin.decorateTasks
-    // （v1.3.11 之前写的是 this.decorateTasks → undefined → draw() 抛错 → 点位整段不执行）
-    const decorate = this.view === 'year' ? null : this.plugin.decorateTasks.bind(this.plugin);
-    this.debugTrace = 'draw() 执行到装饰点：view=' + this.view +
-      ' showDots=' + this.settings.showDots +
-      ' decorate=' + (decorate ? '有' : '无') +
-      ' 日期格=' + root.querySelectorAll('[data-date]').length;
-    if (this.settings.showDots && decorate) {
-      Promise.resolve()
-        .then(() => decorate(root))
-        .catch((e) => {
-          // 装饰失败不影响面板使用，但**必须留下痕迹**（v1.3.7 的教训：我在这里静默吞掉，
-          // 结果"一个点都不画"却查不出原因）
-          this.debugError = (this.debugError || '') + '\n[' + new Date().toISOString() + '] 点位装饰失败：' +
-            ((e && e.stack) || (e && e.message) || String(e));
-          console.error('[simple-calendar] 点位装饰失败', e);
-        });
     }
   }
 
@@ -902,8 +609,7 @@ class CalendarView extends ItemView {
     }
     grid.appendChild(frag);
     body.appendChild(grid);
-    // 不再在这里同步标"有笔记"：日期点由 decorateTasks() 读完待办后一次性画成最终形态，
-    // 否则会出现"读完之前全是空心点"的中间态（v1.3.6 的坑）
+    this.markExisting(grid);
     this.markWeeks(grid, ws);
   }
 
@@ -933,7 +639,6 @@ class CalendarView extends ItemView {
     }
     wrap.appendChild(frag);
     body.appendChild(wrap);
-    // 年视图仍用零成本的存在性标记（不读正文），保持原有行为
     this.markExisting(wrap);
   }
 
@@ -1177,5 +882,4 @@ module.exports.__test = {
   substituteCoreTemplate,
   shiftCursor,
   parseDayKey,
-  countTasks,
 };
