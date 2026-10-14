@@ -453,41 +453,51 @@ class SimpleCalendarPlugin extends Plugin {
     return stat;
   }
 
-  /** 给月视图的日期补"空心/实心点"（同步的 has-note 由 markExisting 负责） */
+  /**
+   * 给月视图的日期画"空心/实心点"。
+   *
+   * 用户 2026-10-14 定稿（**只有三种状态**）：
+   *   没有笔记              → 什么都不画
+   *   有笔记 + 有未完成待办  → 空心点
+   *   有笔记 + 没有未完成    → 实心点
+   * 「有笔记但这天没有待办复选框」按"没有未完成"处理 → 实心（否则这种日子会没有点）。
+   *
+   * ⚠️ 两点必须守住（都是踩过的坑）：
+   *   ① **不要**在读完之前先画"有笔记"的中间态 —— 那会把"还没读完"显示成空心点；
+   *   ② 单个文件读失败不许中断整月（一处抛错=整月不画点）。
+   * 所以这里并发读取，全部拿到结果后再统一上类名。
+   */
   async decorateTasks(scope) {
     if (!this.settings.showDots) return;
     const config = await this.resolveConfig();
     if (!config) return;
     const cfg = config.daily;
     const cells = scope.querySelectorAll('[data-date]');
+    const jobs = [];
     for (let i = 0; i < cells.length; i += 1) {
       const el = cells[i];
       const slot = el.querySelector('.sc-dot-slot');
       if (!slot) continue;
       const date = parseDayKey(el.getAttribute('data-date'));
       if (!date) continue;
-      let stat = null;
-      try {
-        stat = await this.taskStatFor(date, cfg);
-      } catch (e) {
-        stat = null; // 单个文件读失败不许中断整月（一处抛错=整月不画点，v1.3.10 的教训）
-      }
-      if (typeof el.isConnected === 'boolean' && !el.isConnected) continue; // 期间重绘过
-      if (!stat) continue; // 没有笔记 → 什么都不画
-      /*
-       * 用户 2026-10-14 定稿：
-       *   没有笔记                → 什么都不画（上面 continue）
-       *   有笔记 + 有未完成待办    → 空心点
-       *   有笔记 + 没有未完成      → 实心点
-       * 「有笔记但这天没有待办复选框」按"没有未完成"处理 → 实心
-       * （依据他的规则直接推出；若某天完全没写待办也显示实心，符合"有笔记就有点"的期望。）
-       */
+      jobs.push(
+        this.taskStatFor(date, cfg).then(
+          (stat) => ({ el: el, slot: slot, stat: stat }),
+          () => ({ el: el, slot: slot, stat: null }) // 读失败当"没有笔记"，绝不中断整月
+        )
+      );
+    }
+    const results = await Promise.all(jobs);
+    for (const r of results) {
+      if (typeof r.el.isConnected === 'boolean' && !r.el.isConnected) continue; // 期间重绘过
+      if (!r.stat) continue; // 没有笔记 → 什么都不画
+      const slot = r.slot;
       slot.classList.add('has-note');
-      if (stat.hasAny && !stat.allDone) {
-        slot.setAttribute('title', '还有 ' + stat.pending + ' 项待办未完成');
+      if (r.stat.hasAny && !r.stat.allDone) {
+        slot.setAttribute('title', '还有 ' + r.stat.pending + ' 项待办未完成');
       } else {
         slot.classList.add('is-all-done');
-        slot.setAttribute('title', stat.hasAny ? '待办已全部完成' : '没有未完成的待办');
+        slot.setAttribute('title', r.stat.hasAny ? '待办已全部完成' : '没有未完成的待办');
       }
     }
   }
@@ -639,8 +649,12 @@ class CalendarView extends ItemView {
       root.addEventListener('click', this.handler);
     }
 
-    // 同步补"有笔记"（零成本路径索引）；是否画点由 CSS 决定 —— 只有"有笔记且有待办"才可见
-    this.markExisting(root);
+    /*
+     * v1.3.6 的坑：这里曾同步调 markExisting() 先标"有笔记"（= 空心点），
+     * 而"实心点"要等异步读完待办才补上 —— 于是你在读完之前看到的**全是空心点**，
+     * 也就是把"还没读完"画成了"有未完成待办"。
+     * 现在改为：**读完再画**（异步补最终类名），中间态不画任何点。42 个文件的读取是毫秒级。
+     */
 
     /*
      * 待办状态点（用户 2026-10-14 定稿三条规则）：
@@ -721,7 +735,8 @@ class CalendarView extends ItemView {
     }
     grid.appendChild(frag);
     body.appendChild(grid);
-    this.markExisting(grid);
+    // 不再在这里同步标"有笔记"：日期点由 decorateTasks() 读完待办后一次性画成最终形态，
+    // 否则会出现"读完之前全是空心点"的中间态（v1.3.6 的坑）
     this.markWeeks(grid, ws);
   }
 
@@ -751,6 +766,7 @@ class CalendarView extends ItemView {
     }
     wrap.appendChild(frag);
     body.appendChild(wrap);
+    // 年视图仍用零成本的存在性标记（不读正文），保持原有行为
     this.markExisting(wrap);
   }
 
