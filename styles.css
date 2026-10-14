@@ -169,19 +169,52 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* 待办状态点（用户 2026-10-14 定稿）：
+ *   · 没有当日笔记            → 不画点（不加 .has-note）
+ *   · 有待办且有未完成         → 空心点（.has-note.has-task，无 .is-all-done）
+ *   · 待办全部完成            → 实心点（.has-note.has-task.is-all-done）
+ *   · 有笔记但没有待办         → 极淡的小点（知道这天写过东西，又不抢眼）
+ */
 .sc-dot-slot {
-  width: 4px;
-  height: 4px;
+  width: 6px;
+  height: 6px;
   margin-top: 1px;
   border-radius: 50%;
+  border: 1.5px solid transparent;
   background: transparent;
+  box-sizing: border-box;
 }
 
 .sc-dot-slot.has-note {
-  background: var(--text-muted);
+  border-color: var(--text-faint);
+  opacity: 0.45;
 }
 
-.sc-cell.is-today .sc-dot-slot.has-note {
+.sc-dot-slot.has-task {
+  border-color: var(--text-muted);
+  opacity: 1;
+}
+
+.sc-dot-slot.has-task.is-all-done {
+  background: var(--text-muted);
+  border-color: var(--text-muted);
+}
+
+/* 今天那格底色是强调色，点要用对比色 */
+.sc-cell.is-today .sc-dot-slot.has-note,
+.sc-mini-cell.is-today .sc-dot-slot.has-note {
+  border-color: var(--text-on-accent);
+  opacity: 0.55;
+}
+
+.sc-cell.is-today .sc-dot-slot.has-task,
+.sc-mini-cell.is-today .sc-dot-slot.has-task {
+  border-color: var(--text-on-accent);
+  opacity: 1;
+}
+
+.sc-cell.is-today .sc-dot-slot.has-task.is-all-done,
+.sc-mini-cell.is-today .sc-dot-slot.has-task.is-all-done {
   background: var(--text-on-accent);
 }
 
@@ -241,6 +274,14 @@
 
 .sc-mini-cell .sc-dot-slot.has-note {
   background: var(--text-faint);
+  border-color: transparent;
+  opacity: 0.5;
+}
+
+/* 年视图只做"有笔记"标记（不读正文），所以这里不出现 has-task */
+.sc-mini-cell.is-today .sc-dot-slot.has-note {
+  background: var(--text-on-accent);
+  opacity: 0.75;
 }
 
 .sc-mini-cell.is-out .sc-dot-slot {

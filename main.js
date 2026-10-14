@@ -134,6 +134,26 @@ function isoWeekYear(date) {
   return d.getUTCFullYear();
 }
 
+/**
+ * 统计一段文本里的待办（用户 2026-10-14 需求：日历上按待办状态显示空心/实心点）。
+ *   · `- [ ]` / `* [x]` / `+ [X]` 都算；大小写、缩进、任意列表标记都行；
+ *   · 用 `- [ ]` 作为"是否有待办"的判据（没有待办 → 不画点）；
+ *   · `total === done` → 全部完成（实心）。
+ * 返回 { total, done, pending, hasAny, allDone }
+ */
+function countTasks(text) {
+  const src = String(text == null ? '' : text);
+  const re = /^[ \t]*(?:[-*+]|\d+[.)])[ \t]+\[([ xX])\]/gm;
+  let total = 0;
+  let done = 0;
+  let m;
+  while ((m = re.exec(src)) !== null) {
+    total += 1;
+    if (m[1] !== ' ') done += 1;
+  }
+  return { total: total, done: done, pending: total - done, hasAny: total > 0, allDone: total > 0 && done === total };
+}
+
 /** 月视图网格（扁平 42 格，年视图的迷你月用它） */
 function buildMonthGrid(year, month, weekStartsOn) {
   const gridStart = startOfWeek(new Date(year, month, 1), weekStartsOn);
@@ -262,6 +282,8 @@ class SimpleCalendarPlugin extends Plugin {
     super(...arguments);
     /** 解析后的日记/周记配置缓存（设置变更时清掉，避免每次渲染都读配置） */
     this.configCache = null;
+    /** 待办统计缓存：path → { mtime, stat }（只缓存当前可见范围，库变动时清空） */
+    this.taskCache = new Map();
   }
 
   async onload() {
@@ -286,6 +308,7 @@ class SimpleCalendarPlugin extends Plugin {
     // 库内增删改名 → 防抖重绘（只查存在性，代价极低）
     let timer = null;
     const scheduleRedraw = () => {
+      this.taskCache.clear(); // 结构变了，待办缓存一并失效
       if (timer !== null) window.clearTimeout(timer);
       timer = window.setTimeout(() => {
         timer = null;
@@ -400,6 +423,73 @@ class SimpleCalendarPlugin extends Plugin {
 
   isExisting(path) {
     return this.app.vault.getAbstractFileByPath(normalizePath(path)) instanceof TFile;
+  }
+
+  /* ---------------- 待办状态点（读正文，但有缓存与范围限制） ----------------
+   * 用户 2026-10-14 需求：
+   *   · 当日日记**有未完成待办** → 空心点
+   *   · 待办**全部完成**     → 实心点
+   *   · **没有当日笔记**     → 不画点
+   * 设计红线第 2 条说"不读正文"（Calendar 就是因为逐天读文件才变慢）。这里折中：
+   *   ① 只读**当前可见网格**里的日期（月视图 ≤42 个）；
+   *   ② 按 `path → mtime + 统计结果` 缓存，文件没变就不重读；
+   *   ③ 库内 create/delete/rename 时清空缓存；modified 靠 mtime 自动失效；
+   *   ④ 异步补类名，渲染不阻塞；元素已不在文档里（重绘过）就跳过。
+   */
+
+  /** 读一天的日记并统计待办（带 mtime 缓存） */
+  async taskStatFor(date, cfg) {
+    const path = normalizePath(this.pathFor(date, cfg));
+    const file = this.app.vault.getAbstractFileByPath(path);
+    if (!(file instanceof TFile)) {
+      this.taskCache.set(path, { mtime: -1, stat: null });
+      return null; // 没有这个文件 → 不画点
+    }
+    const cached = this.taskCache.get(path);
+    if (cached && cached.mtime === file.stat.mtime) return cached.stat;
+    let stat = null;
+    try {
+      stat = countTasks(await this.app.vault.cachedRead(file));
+    } catch (e) {
+      stat = null;
+    }
+    this.taskCache.set(path, { mtime: file.stat.mtime, stat: stat });
+    return stat;
+  }
+
+  /** 给可见网格里的日期补"空心/实心点" */
+  async decorateTasks(scope, readContent) {
+    if (!this.settings.showDots) return;
+    const config = await this.resolveConfig();
+    if (!config) return;
+    const cfg = config.daily;
+    const cells = scope.querySelectorAll('[data-date]');
+    for (let i = 0; i < cells.length; i += 1) {
+      const el = cells[i];
+      const slot = el.querySelector('.sc-dot-slot');
+      if (!slot) continue;
+      const date = parseDayKey(el.getAttribute('data-date'));
+      if (!date) continue;
+
+      /* 年视图（readContent === false）：只补"有笔记"这个零成本标记，**不读正文**。
+         365 天逐个读文件正是设计红线第 2 条要避免的事（Calendar 就是这样变慢的）。 */
+      if (readContent === false) {
+        if (this.isExisting(this.pathFor(date, cfg))) slot.classList.add('has-note');
+        continue;
+      }
+
+      const stat = await this.taskStatFor(date, cfg);
+      // 读文件期间可能已经重绘过，节点掉出文档就不要动
+      if (typeof el.isConnected === 'boolean' && !el.isConnected) continue;
+      if (!stat) continue; // 没有笔记：不画点
+      slot.classList.add('has-note');
+      if (stat.hasAny) {
+        slot.classList.add('has-task');
+        if (stat.allDone) slot.classList.add('is-all-done');
+        slot.setAttribute('title', stat.allDone ? '待办已全部完成' : '还有 ' + stat.pending + ' 项待办未完成');
+      }
+      slot.classList.add('is-decorated');
+    }
   }
 
   /* ---------------- 打开 / 新建 ---------------- */
@@ -543,6 +633,11 @@ class CalendarView extends ItemView {
     if (this.view === 'year') this.buildYear(body, ws, today);
     else this.buildMonth(body, ws, today);
 
+    // 待办状态点（用户 2026-10-14）：
+    //   · 月视图 → 读可见那 ≤42 天的正文，区分"空心（还有未完成）/实心（全部完成）"；
+    //   · 年视图 → 365 天不读正文，只保留"有笔记"这个零成本标记（设计红线第 2 条）。
+    this.decorateTasks(root, this.view !== 'year');
+
     if (!this.handler) {
       this.handler = (e) => this.onClick(e, ws);
       root.addEventListener('click', this.handler);
@@ -645,6 +740,8 @@ class CalendarView extends ItemView {
   /**
    * 给日期格标上"这天有笔记"。
    * 只查 vault 的路径索引，不读文件内容 —— 这是快的关键。
+   * 注意：点位的"空心/实心"由 decorateTasks() 异步补（那一步才读正文）；
+   *       这里只负责"存在性"这个零成本的部分，且**只有存在时才加点**。
    */
   markExisting(scope) {
     if (!this.plugin.settings.showDots || !this.cfg) return;
@@ -882,4 +979,5 @@ module.exports.__test = {
   substituteCoreTemplate,
   shiftCursor,
   parseDayKey,
+  countTasks,
 };

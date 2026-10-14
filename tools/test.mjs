@@ -169,6 +169,24 @@ eq(T.parseDayKey('2026-02-30'), null, 'parseDayKey 2/30 不存在');
 eq(T.parseDayKey(''), null, 'parseDayKey 空串');
 eq(T.parseDayKey(null), null, 'parseDayKey null');
 
+/* ---------- 15. 待办统计（日历点位：空心=有未完成，实心=全完成） ---------- */
+const t1 = T.countTasks('- [ ] 甲\n- [x] 乙');
+eq(t1.total, 2, '待办总数');
+eq(t1.done, 1, '已完成数');
+eq(t1.pending, 1, '未完成数');
+eq(t1.hasAny, true, '有待办');
+eq(t1.allDone, false, '有未完成 → 空心点');
+eq(T.countTasks('- [x] 甲\n* [X] 乙').allDone, true, '全部完成（含大写 X 与 * 标记）→ 实心点');
+eq(T.countTasks('没有待办的正文，- 普通列表项').hasAny, false, '普通列表不算待办 → 不画点');
+eq(T.countTasks('').hasAny, false, '空文本 → 不画点');
+eq(T.countTasks(null).hasAny, false, 'null 输入不崩');
+eq(T.countTasks('  - [ ] 缩进也算').total, 1, '缩进列表算待办');
+eq(T.countTasks('1. [ ] 有序列表也算').total, 1, '有序列表的复选框也算');
+eq(T.countTasks('- [] 缺空格不算').hasAny, false, '缺空格不算待办');
+eq(T.countTasks('- [ ] 甲\n\n- [ ] 乙\n- [x] 丙\n- [x] 丁').allDone, false, '四选二完成 → 空心');
+eq(T.countTasks('- [x] 只有一个').allDone, true, '只有一个且完成 → 实心');
+eq(T.countTasks('- [ ]').total, 1, '只有复选框没有文字也算');
+
 /* ---------- 14. 导出 ---------- */
 ok(typeof SimpleCalendarPlugin === 'function', '默认导出是插件类');
 eq(SimpleCalendarPlugin.VIEW_TYPE, 'simple-calendar-view', '导出 VIEW_TYPE');
