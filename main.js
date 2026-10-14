@@ -134,6 +134,25 @@ function isoWeekYear(date) {
   return d.getUTCFullYear();
 }
 
+/**
+ * 统计一段文本里的待办（日历点位用）。
+ *   · `- [ ]` / `* [x]` / `+ [X]` / 有序列表 `1. [ ]` / 任意缩进都算；
+ *   · `total === done` 且 total > 0 → 全部完成。
+ * 返回 { total, done, pending, hasAny, allDone }
+ */
+function countTasks(text) {
+  const src = String(text == null ? '' : text);
+  const re = /^[ \t]*(?:[-*+]|\d+[.)])[ \t]+\[([ xX])\]/gm;
+  let total = 0;
+  let done = 0;
+  let m;
+  while ((m = re.exec(src)) !== null) {
+    total += 1;
+    if (m[1] !== ' ') done += 1;
+  }
+  return { total: total, done: done, pending: total - done, hasAny: total > 0, allDone: total > 0 && done === total };
+}
+
 /** 月视图网格（扁平 42 格，年视图的迷你月用它） */
 function buildMonthGrid(year, month, weekStartsOn) {
   const gridStart = startOfWeek(new Date(year, month, 1), weekStartsOn);
@@ -262,6 +281,8 @@ class SimpleCalendarPlugin extends Plugin {
     super(...arguments);
     /** 解析后的日记/周记配置缓存（设置变更时清掉，避免每次渲染都读配置） */
     this.configCache = null;
+    /** 待办统计缓存：path → { mtime, stat }（只缓存当前可见月份，库变动时清空） */
+    this.taskCache = new Map();
   }
 
   async onload() {
@@ -400,6 +421,60 @@ class SimpleCalendarPlugin extends Plugin {
 
   isExisting(path) {
     return this.app.vault.getAbstractFileByPath(normalizePath(path)) instanceof TFile;
+  }
+
+  /* ---------------- 待办状态点（只读当前可见的 ≤42 天，带 mtime 缓存） ----------------
+   * 用户 2026-10-14 定稿的**三条规则**（不要第四种状态）：
+   *   没有笔记            → 什么都不画
+   *   有笔记、有待办未完成 → 空心点
+   *   有笔记、待办全完成   → 实心点
+   *   有笔记、没有待办     → 不画点
+   * 设计红线第 2 条是"不读正文"（Calendar 就是逐天读文件才变慢）；这里只读月视图可见范围，
+   * 且按 mtime 缓存；年视图完全不读正文。
+   */
+
+  /** 读一天的日记并统计待办（带 mtime 缓存；读不到就当"没有笔记"） */
+  async taskStatFor(date, cfg) {
+    const path = normalizePath(this.pathFor(date, cfg));
+    const file = this.app.vault.getAbstractFileByPath(path);
+    if (!(file instanceof TFile)) {
+      this.taskCache.set(path, { mtime: -1, stat: null });
+      return null;
+    }
+    const cached = this.taskCache.get(path);
+    if (cached && cached.mtime === file.stat.mtime) return cached.stat;
+    let stat = null;
+    try {
+      stat = countTasks(await this.app.vault.cachedRead(file));
+    } catch (e) {
+      stat = null;
+    }
+    this.taskCache.set(path, { mtime: file.stat.mtime, stat: stat });
+    return stat;
+  }
+
+  /** 给月视图的日期补"空心/实心点"（同步的 has-note 由 markExisting 负责） */
+  async decorateTasks(scope) {
+    if (!this.settings.showDots) return;
+    const config = await this.resolveConfig();
+    if (!config) return;
+    const cfg = config.daily;
+    const cells = scope.querySelectorAll('[data-date]');
+    for (let i = 0; i < cells.length; i += 1) {
+      const el = cells[i];
+      const slot = el.querySelector('.sc-dot-slot');
+      if (!slot) continue;
+      const date = parseDayKey(el.getAttribute('data-date'));
+      if (!date) continue;
+      const stat = await this.taskStatFor(date, cfg);
+      if (typeof el.isConnected === 'boolean' && !el.isConnected) continue; // 期间重绘过
+      if (!stat) continue; // 没有笔记：什么都不画
+      slot.classList.add('has-note');
+      if (!stat.hasAny) continue; // 有笔记但没有待办 → 不画点
+      slot.classList.add('has-task');
+      if (stat.allDone) slot.classList.add('is-all-done');
+      slot.setAttribute('title', stat.allDone ? '待办已全部完成' : '还有 ' + stat.pending + ' 项待办未完成');
+    }
   }
 
   /* ---------------- 打开 / 新建 ---------------- */
@@ -543,9 +618,31 @@ class CalendarView extends ItemView {
     if (this.view === 'year') this.buildYear(body, ws, today);
     else this.buildMonth(body, ws, today);
 
+    // 先把点击委托挂上，再做别的事 —— 否则后面任何一步抛错都会让"点日期没反应"（v1.3.10 的教训）
     if (!this.handler) {
       this.handler = (e) => this.onClick(e, ws);
       root.addEventListener('click', this.handler);
+    }
+
+    // 同步补"有笔记"（零成本路径索引）；是否画点由 CSS 决定 —— 只有"有笔记且有待办"才可见
+    this.markExisting(root);
+
+    /*
+     * 待办状态点（用户 2026-10-14 定稿三条规则）：
+     *   没有笔记            → 什么都不画
+     *   有笔记、有待办未完成 → 空心点
+     *   有笔记、待办全完成   → 实心点
+     *   有笔记、没有待办     → 不画点（用户明确不要这一态）
+     * 只在**月视图**读正文（≤42 天，带 mtime 缓存）；年视图保持零读取，只标"有笔记"。
+     * 并且：装饰失败绝不影响点击（自己吞异常 + 补 has-note 兜底）。
+     */
+    const decorate = this.view === 'year' ? null : this.decorateTasks.bind(this);
+    if (this.settings.showDots && decorate) {
+      Promise.resolve()
+        .then(() => decorate(root))
+        .catch(() => {
+          /* 装饰失败不影响面板使用；has-note 已由 markExisting 同步补好 */
+        });
     }
   }
 
@@ -882,4 +979,5 @@ module.exports.__test = {
   substituteCoreTemplate,
   shiftCursor,
   parseDayKey,
+  countTasks,
 };
