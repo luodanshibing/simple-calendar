@@ -302,6 +302,13 @@ class SimpleCalendarPlugin extends Plugin {
       callback: () => this.openOrCreate('weekly', new Date(), false),
     });
 
+    // 一次性诊断（排查"日期点不显示"，2026-10-14）：只读，导出到库根 .simple-calendar-diag.txt
+    this.addCommand({
+      id: 'diagnose-dots',
+      name: '导出日历点位诊断',
+      callback: () => this.dumpDotDiagnosis(),
+    });
+
     this.addSettingTab(new CalendarSettingTab(this.app, this));
 
     // 库内增删改名 → 防抖重绘（只查存在性，代价极低）
@@ -500,6 +507,98 @@ class SimpleCalendarPlugin extends Plugin {
         slot.setAttribute('title', r.stat.hasAny ? '待办已全部完成' : '没有未完成的待办');
       }
     }
+  }
+
+  /** 导出"日期点"诊断到库根（只读，不修改任何笔记） */
+  async dumpDotDiagnosis() {
+    const out = [];
+    const push = (s) => out.push(s);
+    push('simple-calendar 点位诊断  ' + new Date().toISOString());
+    push('showDots = ' + this.settings.showDots + '   followDailyNotes = ' + this.settings.followDailyNotes);
+    try {
+      const core = await this.readCoreDailyNotes();
+      push('核心日记配置：folder=' + JSON.stringify(core.folder) + ' format=' + JSON.stringify(core.format));
+    } catch (e) {
+      push('核心日记配置读取失败：' + (e && e.message));
+    }
+    let cfg = null;
+    try {
+      const config = await this.resolveConfig();
+      cfg = config && config.daily;
+      push('解析后 daily：folder=' + JSON.stringify(cfg && cfg.folder) + ' format=' + JSON.stringify(cfg && cfg.format));
+    } catch (e) {
+      push('resolveConfig 失败：' + (e && e.message));
+    }
+    push('vault.cachedRead 可用？' + (typeof this.app.vault.cachedRead === 'function'));
+    push('vault.read 可用？' + (typeof this.app.vault.read === 'function'));
+
+    if (cfg) {
+      push('');
+      push('--- 最近 5 天：路径 / 是否存在 / 待办统计 ---');
+      for (let k = 0; k < 5; k += 1) {
+        const d = new Date();
+        d.setDate(d.getDate() - k);
+        let path = '';
+        try {
+          path = normalizePath(this.pathFor(d, cfg));
+        } catch (e) {
+          path = '(pathFor 抛错: ' + (e && e.message) + ')';
+        }
+        const f = this.app.vault.getAbstractFileByPath(path);
+        let statText = '（未读）';
+        if (f instanceof TFile) {
+          try {
+            const st = countTasks(await this.app.vault.cachedRead(f));
+            statText = JSON.stringify(st);
+          } catch (e) {
+            statText = '读取抛错：' + (e && e.message);
+          }
+        }
+        push('  ' + path + '  存在=' + (f instanceof TFile) + '  ' + statText);
+      }
+    }
+
+    push('');
+    push('--- 当前日历里点位的实际类名（前 20 格）---');
+    let cells = [];
+    try {
+      const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE);
+      const view = leaves && leaves[0] && leaves[0].view;
+      const root = view && view.contentEl;
+      if (!root) {
+        push('拿不到日历视图（先打开日历再运行本命令）');
+      } else {
+        cells = root.querySelectorAll('[data-date]');
+        push('日期格数量 = ' + cells.length);
+        for (let i = 0; i < cells.length && i < 20; i += 1) {
+          const el = cells[i];
+          const slot = el.querySelector('.sc-dot-slot');
+          push('  ' + el.getAttribute('data-date') + '  dot槽=' + (slot ? '有' : '无') + '  class=[' + (slot ? slot.className : '') + ']');
+        }
+      }
+    } catch (e) {
+      push('读取 DOM 失败：' + (e && e.message));
+    }
+
+    const body = out.join('\n') + '\n';
+    const path = '.simple-calendar-diag.txt';
+    let how = '';
+    try {
+      await this.app.vault.adapter.write(path, body);
+      how = 'adapter.write';
+    } catch (e1) {
+      try {
+        const f = this.app.vault.getAbstractFileByPath(path);
+        if (f) await this.app.vault.modify(f, body);
+        else await this.app.vault.create(path, body);
+        how = 'vault.modify/create';
+      } catch (e2) {
+        console.log('[simple-calendar] 诊断：\n' + body);
+        new Notice('诊断写不进文件，已打印到控制台', 8000);
+        return;
+      }
+    }
+    new Notice('已导出点位诊断到库根 ' + path + '（' + how + '）', 6000);
   }
 
   /* ---------------- 打开 / 新建 ---------------- */
