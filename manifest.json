@@ -1,7 +1,7 @@
 {
   "id": "simple-calendar-lite",
   "name": "Simple Calendar",
-  "version": "1.3.9",
+  "version": "1.3.10",
   "minAppVersion": "1.5.0",
   "description": "轻量日历：月/年视图，周号并入月视图，点击即生成或进入日记。",
   "author": "luodanshibing",

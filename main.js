@@ -283,6 +283,10 @@ class SimpleCalendarPlugin extends Plugin {
     this.configCache = null;
     /** 待办统计缓存：path → { mtime, stat }（只缓存当前可见月份，库变动时清空） */
     this.taskCache = new Map();
+    /** 诊断用：装饰执行轨迹与错误（"点不显示"这类问题必须留痕，不许静默吞） */
+    this.debugTrace = '';
+    this.debugError = '';
+    this.debugCount = null;
   }
 
   async onload() {
@@ -307,6 +311,12 @@ class SimpleCalendarPlugin extends Plugin {
       id: 'diagnose-dots',
       name: '导出日历点位诊断',
       callback: () => this.dumpDotDiagnosis(),
+    });
+    // 手动触发一次点位装饰：用来判定"是装饰逻辑坏了"还是"触发链没跑起来"
+    this.addCommand({
+      id: 'redraw-dots-now',
+      name: '立即重算日期点',
+      callback: () => this.runDotsNow(),
     });
 
     this.addSettingTab(new CalendarSettingTab(this.app, this));
@@ -520,6 +530,27 @@ class SimpleCalendarPlugin extends Plugin {
     }
     this.debugTrace = '装饰完成：格子 ' + cells.length + ' / 任务 ' + jobs.length +
       ' / 有笔记 ' + results.filter((r) => r.stat).length + ' / 上色 ' + applied;
+  }
+
+  /** 手动重算一次日期点（诊断用）：直接对当前日历 DOM 跑装饰 */
+  async runDotsNow() {
+    try {
+      const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE);
+      const view = leaves && leaves[0] && leaves[0].view;
+      const root = view && view.contentEl;
+      if (!root) {
+        new Notice('先打开日历再运行本命令', 6000);
+        return;
+      }
+      this.debugTrace = '';
+      this.debugCount = null;
+      await this.decorateTasks(root);
+      new Notice('已重算：' + (this.debugTrace || '（没有结果）'), 8000);
+    } catch (e) {
+      this.debugError = (this.debugError || '') + '\n[' + new Date().toISOString() + '] 手动重算失败：' +
+        ((e && e.stack) || (e && e.message) || String(e));
+      new Notice('重算失败：' + ((e && e.message) || e), 8000);
+    }
   }
 
   /** 导出"日期点"诊断到库根（只读，不修改任何笔记） */
@@ -785,6 +816,10 @@ class CalendarView extends ItemView {
      * 并且：装饰失败绝不影响点击（自己吞异常 + 补 has-note 兜底）。
      */
     const decorate = this.view === 'year' ? null : this.decorateTasks.bind(this);
+    this.debugTrace = 'draw() 执行到装饰点：view=' + this.view +
+      ' showDots=' + this.settings.showDots +
+      ' decorate=' + (decorate ? '有' : '无') +
+      ' 日期格=' + root.querySelectorAll('[data-date]').length;
     if (this.settings.showDots && decorate) {
       Promise.resolve()
         .then(() => decorate(root))
