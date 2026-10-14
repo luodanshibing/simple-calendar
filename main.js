@@ -26,6 +26,24 @@
 const obsidian = require('obsidian');
 const { Plugin, ItemView, PluginSettingTab, Setting, TFile, Notice, normalizePath } = obsidian;
 
+/**
+ * 该日期的点该怎么画：'' = 没有笔记（不画）；'has-note' = 实心；'has-note has-open-task' = 空心。
+ * 规则（用户 2026-10-14 指定）：没有笔记→没点；有笔记+有未完成待办→空心；有笔记+无未完成→实心。
+ */
+function dotClassFor(exists, hasOpenTask) {
+  if (!exists) return '';
+  return hasOpenTask ? 'has-note has-open-task' : 'has-note';
+}
+
+/** 只看 Obsidian 已解析好的缓存：listItems 里 task === ' ' 表示未完成（'x' 表示已完成） */
+function hasOpenTaskInListItems(listItems) {
+  if (!Array.isArray(listItems)) return false;
+  for (const it of listItems) {
+    if (it && it.task === ' ') return true;
+  }
+  return false;
+}
+
 /** moment 由 Obsidian 提供（不额外打包） */
 const momentLib = obsidian.moment || (typeof window !== 'undefined' ? window.moment : null);
 
@@ -295,6 +313,8 @@ class SimpleCalendarPlugin extends Plugin {
     this.registerEvent(this.app.vault.on('create', scheduleRedraw));
     this.registerEvent(this.app.vault.on('delete', scheduleRedraw));
     this.registerEvent(this.app.vault.on('rename', scheduleRedraw));
+    // todos change when their metadata cache entry changes; redraw the dots (still no file reads)
+    this.registerEvent(this.app.metadataCache.on('changed', scheduleRedraw));
     this.register(() => {
       if (timer !== null) window.clearTimeout(timer);
     });
@@ -646,6 +666,20 @@ class CalendarView extends ItemView {
    * 给日期格标上"这天有笔记"。
    * 只查 vault 的路径索引，不读文件内容 —— 这是快的关键。
    */
+  /**
+   * 该文件里是否还有未完成待办。
+   * 只查 metadataCache 里**已经解析好的**缓存，从不 read() 文件内容 —— 保住"快"这个前提。
+   */
+  hasOpenTask(path) {
+    try {
+      const file = this.app.vault.getAbstractFileByPath(path);
+      if (!(file instanceof TFile)) return false;
+      const cache = this.app.metadataCache.getFileCache(file);
+      return hasOpenTaskInListItems(cache && cache.listItems);
+    } catch (e) {
+      return false;
+    }
+  }
   markExisting(scope) {
     if (!this.plugin.settings.showDots || !this.cfg) return;
     const cells = scope.querySelectorAll('[data-date]');
@@ -655,7 +689,9 @@ class CalendarView extends ItemView {
       if (!slot) continue;
       const date = parseDayKey(el.getAttribute('data-date'));
       if (!date) continue;
-      if (this.plugin.isExisting(this.plugin.pathFor(date, this.cfg.daily))) slot.classList.add('has-note');
+      const path = this.plugin.pathFor(date, this.cfg.daily);
+      const cls = dotClassFor(this.plugin.isExisting(path), this.plugin.hasOpenTask(path));
+      slot.className = 'sc-dot-slot' + (cls ? ' ' + cls : '');
     }
   }
 
@@ -859,6 +895,8 @@ class CalendarSettingTab extends PluginSettingTab {
 module.exports = SimpleCalendarPlugin;
 module.exports.VIEW_TYPE = VIEW_TYPE;
 module.exports.__test = {
+  dotClassFor,
+  hasOpenTaskInListItems,
   DEFAULT_SETTINGS,
   VIEWS,
   FALLBACK_DAILY,

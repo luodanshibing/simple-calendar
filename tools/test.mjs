@@ -174,6 +174,19 @@ ok(typeof SimpleCalendarPlugin === 'function', '默认导出是插件类');
 eq(SimpleCalendarPlugin.VIEW_TYPE, 'simple-calendar-view', '导出 VIEW_TYPE');
 
 /* ---------- 汇总 ---------- */
+
+/* ---------- 点位三态（2026-10-14 规格）---------- */
+eq(T.dotClassFor(false, false), '', '没有笔记 → 不画点');
+eq(T.dotClassFor(false, true), '', '没有笔记（缓存里即使有待办）→ 不画点');
+eq(T.dotClassFor(true, true), 'has-note has-open-task', '有笔记 + 有未完成待办 → 空心');
+eq(T.dotClassFor(true, false), 'has-note', '有笔记 + 无未完成待办 → 实心');
+eq(T.hasOpenTaskInListItems([{ task: 'x' }, { task: ' ' }]), true, '存在未完成（task === 空格）');
+eq(T.hasOpenTaskInListItems([{ task: 'x' }, { task: '-' }]), false, '全部完成 / 非任务项 → 无未完成');
+eq(T.hasOpenTaskInListItems([{ task: '-' }]), false, '普通列表项不算待办');
+eq(T.hasOpenTaskInListItems([{ task: '>' }]), false, '引用等其它标记不算未完成');
+eq(T.hasOpenTaskInListItems([]), false, '空列表 → false');
+eq(T.hasOpenTaskInListItems(null), false, 'null → false');
+eq(T.hasOpenTaskInListItems([{ task: ' ', file: 'x' }]), true, '嵌套任务也算（只看 task 字段）');
 if (fails.length === 0) {
   console.log(`\n通过 ${pass} 项，失败 0 项\n全部通过 ✓\n`);
 } else {
