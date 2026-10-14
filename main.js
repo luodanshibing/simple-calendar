@@ -442,20 +442,29 @@ class SimpleCalendarPlugin extends Plugin {
 
   /** 读一天的日记并统计待办（带 mtime 缓存；读不到就当"没有笔记"） */
   async taskStatFor(date, cfg) {
+    const d = (this.debugCount = this.debugCount || { calls: 0, noFile: 0, cacheHit: 0, readErr: 0, readOk: 0, null: 0 });
+    d.calls += 1;
     const path = normalizePath(this.pathFor(date, cfg));
     const file = this.app.vault.getAbstractFileByPath(path);
     if (!(file instanceof TFile)) {
+      d.noFile += 1;
       this.taskCache.set(path, { mtime: -1, stat: null });
       return null;
     }
     const cached = this.taskCache.get(path);
-    if (cached && cached.mtime === file.stat.mtime) return cached.stat;
+    if (cached && cached.mtime === file.stat.mtime) {
+      d.cacheHit += 1;
+      return cached.stat;
+    }
     let stat = null;
     try {
       stat = countTasks(await this.app.vault.cachedRead(file));
+      d.readOk += 1;
     } catch (e) {
+      d.readErr += 1;
       stat = null;
     }
+    if (!stat) d.null += 1;
     this.taskCache.set(path, { mtime: file.stat.mtime, stat: stat });
     return stat;
   }
@@ -495,6 +504,7 @@ class SimpleCalendarPlugin extends Plugin {
       );
     }
     const results = await Promise.all(jobs);
+    let applied = 0;
     for (const r of results) {
       if (typeof r.el.isConnected === 'boolean' && !r.el.isConnected) continue; // 期间重绘过
       if (!r.stat) continue; // 没有笔记 → 什么都不画
@@ -506,7 +516,10 @@ class SimpleCalendarPlugin extends Plugin {
         slot.classList.add('is-all-done');
         slot.setAttribute('title', r.stat.hasAny ? '待办已全部完成' : '没有未完成的待办');
       }
+      applied += 1;
     }
+    this.debugTrace = '装饰完成：格子 ' + cells.length + ' / 任务 ' + jobs.length +
+      ' / 有笔记 ' + results.filter((r) => r.stat).length + ' / 上色 ' + applied;
   }
 
   /** 导出"日期点"诊断到库根（只读，不修改任何笔记） */
@@ -559,6 +572,13 @@ class SimpleCalendarPlugin extends Plugin {
     }
 
     push('');
+    push('--- 装饰过程记录 ---');
+    push('执行轨迹：' + (this.debugTrace || '（装饰从未跑完）'));
+    push('最近一次装饰错误：' + (this.debugError || '（无）'));
+    push('taskCache 条目数：' + (this.taskCache ? this.taskCache.size : '（未初始化）'));
+    push('taskStatFor 分支计数：' + JSON.stringify(this.debugCount || null));
+    push('');
+
     push('--- 当前日历里点位的实际类名（前 20 格）---');
     let cells = [];
     try {
@@ -768,8 +788,12 @@ class CalendarView extends ItemView {
     if (this.settings.showDots && decorate) {
       Promise.resolve()
         .then(() => decorate(root))
-        .catch(() => {
-          /* 装饰失败不影响面板使用；has-note 已由 markExisting 同步补好 */
+        .catch((e) => {
+          // 装饰失败不影响面板使用，但**必须留下痕迹**（v1.3.7 的教训：我在这里静默吞掉，
+          // 结果"一个点都不画"却查不出原因）
+          this.debugError = (this.debugError || '') + '\n[' + new Date().toISOString() + '] 点位装饰失败：' +
+            ((e && e.stack) || (e && e.message) || String(e));
+          console.error('[simple-calendar] 点位装饰失败', e);
         });
     }
   }
