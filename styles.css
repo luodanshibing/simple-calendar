@@ -252,17 +252,31 @@
    有笔记 + 有未完成待办 → 空心
    有笔记 + 无未完成待办 → 实心（.has-note 原样）
    用 inset 阴影做"空心"，不改变 4px 圆点的盒子尺寸。 */
+
+/* ---------- 点位三态：空心/实心必须一眼可分（2026-10-14 二次调整）----------
+   没有笔记 → 不画点
+   有笔记 + 有未完成待办 → 空心：放大到 6px + 强调色圆环（4px 里塞 1px 的孔几乎看不见）
+   有笔记 + 无未完成待办 → 实心：4px 圆点（原样） */
 .sc-dot-slot.has-note.has-open-task {
+  width: 6px;
+  height: 6px;
+  margin-top: 0;
   background: transparent;
-  box-shadow: inset 0 0 0 1.5px var(--text-muted);
+  box-shadow: inset 0 0 0 2px var(--interactive-accent);
 }
 
 .sc-cell.is-today .sc-dot-slot.has-note.has-open-task {
-  background: transparent;
-  box-shadow: inset 0 0 0 1.5px var(--text-on-accent);
+  box-shadow: inset 0 0 0 2px var(--text-on-accent);
 }
 
 .sc-mini-cell .sc-dot-slot.has-note.has-open-task {
+  width: 100%;
+  height: 100%;
+  margin: 0;
   background: transparent;
-  box-shadow: inset 0 0 0 1.5px var(--text-faint);
+  box-shadow: inset 0 0 0 1.5px var(--interactive-accent);
+}
+
+.sc-mini-cell.is-today .sc-dot-slot.has-note.has-open-task {
+  box-shadow: inset 0 0 0 1.5px var(--text-on-accent);
 }
