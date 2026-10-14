@@ -772,7 +772,14 @@ class CalendarView extends ItemView {
     this.rendering = true;
     try {
       this.cfg = await this.plugin.resolveConfig();
-      this.draw();
+      try {
+        this.draw();
+      } catch (e) {
+        // draw() 抛错会被这里吞掉（日历照样显示），但"点位不画"正是它的后果 —— 必须留痕
+        this.plugin.debugError = (this.plugin.debugError || '') +
+          '\n[' + new Date().toISOString() + '] draw() 抛错：' + ((e && e.stack) || (e && e.message) || String(e));
+        console.error('[simple-calendar] draw() 抛错', e);
+      }
     } finally {
       this.rendering = false;
     }
