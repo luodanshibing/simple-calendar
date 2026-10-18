@@ -275,3 +275,12 @@
   box-shadow: inset 0 0 0 1px var(--interactive-accent);
 }
 
+/* ---------- 年视图今日格描边修正（v1.4.5）----------
+   dot-slot 铺满整格且在 cell 的 inset 描边之上，有笔记时灰块会把描边盖住。
+   今日格的点位层改为透明，并由它自身画出同款描边环（层级最高，不被遮挡）。 */
+.sc-mini-cell.is-today .sc-dot-slot,
+.sc-mini-cell.is-today .sc-dot-slot.has-note,
+.sc-mini-cell.is-today .sc-dot-slot.has-note.has-open-task {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--background-modifier-border);
+}
