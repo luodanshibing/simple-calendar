@@ -159,9 +159,9 @@
 }
 
 .sc-cell.is-today {
-  color: var(--text-on-accent);
-  background: var(--interactive-accent);
-  font-weight: 700;
+  color: var(--text-normal);
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--background-modifier-border);
 }
 
 .sc-daynum {
@@ -179,10 +179,6 @@
 
 .sc-dot-slot.has-note {
   background: var(--text-muted);
-}
-
-.sc-cell.is-today .sc-dot-slot.has-note {
-  background: var(--text-on-accent);
 }
 
 /* ---------- 年视图（迷你月） ---------- */
@@ -229,7 +225,8 @@
 }
 
 .sc-mini-cell.is-today {
-  background: var(--interactive-accent);
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--background-modifier-border);
 }
 
 .sc-mini-cell .sc-dot-slot {
@@ -270,11 +267,6 @@
   box-shadow: inset 0 0 0 1px var(--interactive-accent);
 }
 
-.sc-cell.is-today .sc-dot-slot.has-note.has-open-task {
-  background: transparent;
-  box-shadow: inset 0 0 0 1px var(--text-on-accent);
-}
-
 .sc-mini-cell .sc-dot-slot.has-note.has-open-task {
   width: 100%;
   height: 100%;
@@ -283,7 +275,3 @@
   box-shadow: inset 0 0 0 1px var(--interactive-accent);
 }
 
-.sc-mini-cell.is-today .sc-dot-slot.has-note.has-open-task {
-  background: transparent;
-  box-shadow: inset 0 0 0 1px var(--text-on-accent);
-}
